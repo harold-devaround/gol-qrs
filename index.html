@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GOL — Questions / Réponses</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --card-hover: #222633;
+      --accent: #c9a44c;
+      --accent2: #8b6914;
+      --text: #e0ddd5;
+      --muted: #9995;
+      --q: #d4cfc3;
+      --a: #c9a44c;
+      --tag-bg: #2a2d3a;
+      --tag-active: #c9a44c;
+      --tag-active-text: #0f1117;
+      --border: #2e313d;
+      --search-bg: #181b24;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, #1a1d27 0%, #252836 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 2rem 1rem 1.5rem;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      margin-bottom: 0.2rem;
+    }
+    header p {
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .controls {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+    .search-box {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .search-box input {
+      flex: 1;
+      padding: 0.65rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--search-bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-box input:focus {
+      border-color: var(--accent);
+    }
+    .search-box input::placeholder { color: #666; }
+    #count {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.65rem 1rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: var(--accent);
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .tag {
+      padding: 0.3rem 0.75rem;
+      border-radius: 20px;
+      background: var(--tag-bg);
+      color: var(--text);
+      font-size: 0.78rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .tag:hover { border-color: var(--accent); }
+    .tag.active {
+      background: var(--tag-active);
+      color: var(--tag-active-text);
+      font-weight: 600;
+    }
+    .tag.all-tag { border: 1px solid var(--border); }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+    .qa-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 0.75rem;
+      transition: background 0.15s;
+    }
+    .qa-card:hover { background: var(--card-hover); }
+    .qa-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .qa-num {
+      background: var(--accent2);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.75rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 6px;
+      min-width: 2rem;
+      text-align: center;
+    }
+    .qa-source {
+      font-size: 0.75rem;
+      color: var(--muted);
+      padding: 0.1rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .qa-date {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .qa-themes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-left: auto;
+    }
+    .qa-themes span {
+      font-size: 0.7rem;
+      background: var(--tag-bg);
+      padding: 0.1rem 0.5rem;
+      border-radius: 10px;
+      color: var(--accent);
+    }
+    .qa-question {
+      color: var(--q);
+      margin-bottom: 0.6rem;
+      font-size: 0.92rem;
+      white-space: pre-wrap;
+    }
+    .qa-answer {
+      color: var(--a);
+      font-size: 0.92rem;
+      padding-left: 1rem;
+      border-left: 3px solid var(--accent2);
+      white-space: pre-wrap;
+    }
+    .qa-question strong, .qa-answer strong {
+      font-weight: 600;
+    }
+    .highlight {
+      background: rgba(201, 164, 76, 0.25);
+      border-radius: 2px;
+      padding: 0 2px;
+    }
+    @media (max-width: 700px) {
+      header { padding: 1.2rem 0.75rem 1rem; }
+      .qa-card { padding: 1rem; }
+      .qa-meta { gap: 0.4rem; }
+      .qa-themes { margin-left: 0; margin-top: 0.3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Guardians of Legends — Q&amp;R</h1>
+  <p>Questions / Réponses officielles de la chasse au trésor</p>
+</header>
+
+<div class="controls">
+  <div class="search-box">
+    <input type="text" id="search" placeholder="Rechercher dans les questions et réponses…" autocomplete="off">
+    <span id="count"></span>
+  </div>
+  <div class="tags" id="tags"></div>
+</div>
+
+<main id="list"></main>
+
+<script>
+const DATA = [
+  {n:1,src:"forum",date:"02/03/2020",themes:["Nid (pile-poil)","Creuser"],q:"Lorsque l'on a trouvé le coffre, une clé est elle nécessaire pour l'ouvrir ? Si oui se trouve t elle directement, en même temps que le coffre ou faut il encore la chercher ailleurs ?",a:"Il n'y a pas besoin de clef pour ouvrir le coffre. Un petit mécanisme (très simple) permet de l'ouvrir."},
+  {n:2,src:"forum",date:"02/03/2020",themes:["Horloges","Carton"],q:"Peux tu affirmer que le décryptage des chiffres sur la boite en carton doit être précéder du décryptage des horloges, ou à minima aide à celui ci ?",a:"Je ne peux expliciter le lien entre les énigmes, mais de manière générale, on peut aborder chaque énigme avec une certaine autonomie. Mais certaines énigmes nécessitent d'avoir résolu complétement d'autres afin d'être entièrement solubles."},
+  {n:3,src:"forum",date:"02/03/2020",themes:["Horloges"],q:"Dans l'énigme des horloges, j'ai l'impression que la pointe (ou le triangle qui se trouve au bout d'une des 2 aiguilles de chaque horloge) est parfois sur la grande aiguille et parfois sur la petite aiguille. Est-ce que je vois mal (est-ce que cette pointe se trouve toujours sur la grande ou petite aiguille) ?",a:"Vous ne voyez pas mal. C'est exact. La pointe est parfois sur la petite aiguille et parfois sur la grande."},
+  {n:4,src:"forum",date:"30/04/2020",themes:["CP9"],q:"Les symboles sur les cartons dans le Grenier sont difficiles à lire et légèrement flous. A défaut de pouvoir nous indiquer si nous devons les décrypter ou non, serait-il envisageable de mettre à disposition des versions haute résolution des Cartes Postales à destination des joueurs ?",a:"Nous avons vérifié que tous les éléments importants pour la chasse sont lisibles sur les cartes postales. Je vous laisse tirer vos conclusions."},
+  {n:5,src:"forum",date:"30/04/2020",themes:["Parallèle","Spectre Ailé"],q:"L'énoncé 6 nous parle de remonter la parallèle vers le Spectre Ailé, devons-nous comprendre qu'on doit atteindre le Spectre Ailé dans notre remontée ou bien seulement se diriger vers lui ?",a:"Il s'agit bien de remonter « vers » soit « en direction de ». Et non jusqu'à. (mise à jour pour être plus précis du 22/05/20)"},
+  {n:6,src:"forum",date:"07/05/2020",themes:["Horloges"],q:"L'indication supplémentaire 1 nous sert lorsque l'on a résolu la carte postale des horloges ou nous sert telle à la résoudre ?",a:"Elle sert aux deux."},
+  {n:7,src:"forum",date:"07/05/2020",themes:["Feuille de route"],q:"Les consignes sont-elles uniquement regroupées dans la feuille de route, ou d'autres peuvent-elles être cachées dans les cartes postales ?",a:"C'est une excellente question. La réponse est oui, d'autres peuvent être cachées dans les cartes postales."},
+  {n:8,src:"forum",date:"12/05/2020",themes:[],q:"Dans la fenêtre du chalet de la carte postale 'Antarctique' sont des signes étranges. Qu'est-ce qu'on peut faire avec ça ? Où devrions-nous utiliser cette information ?",a:"Pour ce qui est de savoir quoi en faire et où l'utiliser, c'est à vous de trouver. Pour cette carte, il vaut mieux regarder à travers les fenêtres que ce qui il y a dessus."},
+  {n:9,src:"forum",date:"12/05/2020",themes:["Creuser"],q:"J'aimerais savoir si aller sur le lieu où est enterré le coffre est financièrement possible pour tout le monde ou si une certaine somme d'argent +- conséquente est nécessaire au voyage ?",a:"Cela dépend de votre point de départ. J'imagine que pour certains, cela ne va rien coûter et que pour d'autres, il faudra débourser un montant pour y arriver.\nC'est pour cette raison que nous précisions de ne pas se déplacer si vous n'êtes pas sûr de votre décryptage.\nEt c'est également pour avoir une certaine forme d'équité que nous remboursons le moyen de transport du vainqueur."},
+  {n:10,src:"forum",date:"15/05/2020",themes:["Général"],q:"Dans le règlement, il est inscrit : \"La chasse aux trésors peut se faire depuis le lieu où la boîte est située. Aucun déplacement géographique n'est requis, hormis au terme du jeu pour aller trouver le coffre dont le participant aura identifié précisément l'endroit après la résolution de LA DERNIÈRE ÉNIGME du jeu concours.\" Est-ce que cette dernière énigme correspond à une énigme présente sur l'une des cartes postales ?",a:"C'est vraiment une excellente question… à laquelle j'aimerais beaucoup pouvoir répondre, mais malheureusement, je ne peux vraiment pas répondre à cette question au risque d'ouvrir une porte (une autoroute) aux fausses pistes."},
+  {n:11,src:"forum",date:"15/05/2020",themes:["Horloges","Échecs"],q:"Sur la carte postale des horloges. Après des mois de réflexion, je parviens à démêler l'énigme — c'était bien fait d'ailleurs, une énigme magistrale. Mais alors les pièces d'échecs, à quoi ça sert ?",a:"Merci pour le compliment. Pour les pièces d'échecs, si elles ont une utilité, je vous laisse la trouver."},
+  {n:12,src:"forum",date:"20/05/2020",themes:["Room 144"],q:"Le second bruit de la poubelle nous indique-t-il qu'elle est un moyen d'ouvrir une seconde salle ?",a:"Ce second bruit indique une résonnance. Il y a quelque chose à trouver dans cette pièce. Cette chose à trouver est cachée derrière quelque chose.\nAssez nébuleux comme façon d'y répondre, mais pour ce qui est de la nature de cette chose, c'est à vous de la trouver."},
+  {n:13,src:"forum",date:"20/05/2020",themes:["Continent blanc"],q:"L'énoncé 4 nous parle de continuer notre route vers le continent blanc.\nFaut il interpréter cela comme \"continue ta route qui va déjà vers le continent blanc\" ou bien \"continue ta route en allant maintenant vers le continent blanc\" ?",a:"Très bonne question. Il m'aurait été plus simple de ne pas y répondre, mais votre formulation m'y oblige… bien joué.\nEn l'occurrence le mot route est à lire dans le sens voyage. Dès lors, on pourrait dire « De là où tu es, continue ton voyage en allant à présent vers le continent blanc … »"},
+  {n:14,src:"forum",date:"22/05/2020",themes:["Progressiomètre"],q:"Peux tu nous dire selon tes nombreuses sources dans les forums ou autres discussions si l'un des chasseur(se)s est proche du bon spot ?",a:"Si on parle stricto sensus du spot à l'évidence, non, sinon le coffre aurait déjà été déterré.\nPour la zone, je ne ferai pas de commentaire."},
+  {n:15,src:"forum",date:"22/05/2020",themes:["Horloges","Chien austral"],q:"Diriez-vous que le Chien Austral est Trouvé ou plutôt Confirmé par l'énigme \"des horloges\" ?",a:"Je dirais que le chien Austral est à trouver dans l'énigme des horloges.\nCependant, et pour être plus précis, quitte à être plus confus pour certains, il est trouvé après la résolution du cryptage de la carte des horloges."},
+  {n:16,src:"forum",date:"26/05/2020",themes:["Horloges"],q:"Une grande partie des chasseurs ont pris pour hypothèse qu'il fallait utiliser l'unité pour décrypter les horloges. Peux-tu confirmer que chaque carte postale se suffit à elle-même pour résoudre son énigme ?",a:"Il faut distinguer ce qui suffit à une carte postale de ce qui est nécessaire.\nChaque carte postale est suffisante pour : éliminer le décorum des indices et cryptos cachés pour la chasse ; comprendre le type de cryptage utilisé ; parfois être résolue entièrement.\nMais pour certaines cartes, il est nécessaire et non plus suffisant d'avoir résolu d'autres cartes postales pour les terminer à 100%."},
+  {n:17,src:"forum",date:"26/05/2020",themes:["Horloges"],q:"Les horloges se déchiffrent elles avec le même genre de mécanisme que les autres énigmes, ou est-ce construit de manière très différente ?",a:"C'est une très bonne question mais je ne peux répondre aux questions relatives à la nature des cryptages."},
+  {n:18,src:"forum",date:"28/05/2020",themes:["Nid (pile-poil)","Creuser"],q:"Quand le coffre a-t-il été mis sous terre ?",a:"Le coffre a été enterré en 2012."},
+  {n:19,src:"forum",date:"28/05/2020",themes:["Toile"],q:"L'énoncé 9 nous parle de \"dénouer la toile\" en français. Dans d'autres langues l'accent est mit sur l'action de continuer à défaire notre toile. Faut il prendre cette formulation au premier degré ou au second degré ?",a:"A vous de de l'interpréter. L'idée derrière une chasse internationale est bien d'échanger les points de vue."},
+  {n:20,src:"forum",date:"03/06/2020",themes:["Zone","Nid (pile-poil)","Spot"],q:"Pouvez-vous valider ou invalider si lorsque nous avons la zone finale nous sommes certains que c'est celle-ci ou ce n'est que lorsqu'on a la combinaison zone finale + cache que nous en sommes certains ?",a:"Vous êtes certain du spot de fin quand tout est résolu. Avant ça, un doute peu subsister. La zone finale vous rassure sur la cache et inversement."},
+  {n:21,src:"forum",date:"03/06/2020",themes:["CP9"],q:"Y a-t-il quelque chose à trouver avec les \"symboles\" sur les 3 cartons de gauche du grenier ?",a:"Oui, mais est-ce que cela à avoir avec le jeu de société ou la chasse au trésor, c'est à vous de le trouver."},
+  {n:22,src:"forum",date:"05/06/2020",themes:["Nid (pile-poil)"],q:"Le coffre est-il enterré dans un endroit isolé ?",a:"Je me refuse tout commentaire sur le spot final. La seule chose que je peux vous dire, c'est qu'en respectant les lieux, vous pouvez creuser."},
+  {n:23,src:"forum",date:"05/06/2020",themes:["Origine"],q:"Y a-t-il plusieurs Origines ?",a:"Il n'y a qu'une seule Origine de l'Origine utile dans le jeu."},
+  {n:24,src:"forum",date:"10/06/2020",themes:["Feuille de route"],q:"Les différentes traductions de la feuille de route font apparaître des notions parfois un peu différentes pour un même élément. Par exemple, le \"chien austral\" en français devient \"chien du sud\" en anglais et \"petit chien\" en allemand. Faut il interpréter cela comme notre chien devant être austral, du sud et petit, ou bien devons nous nous concentrer sur ce qui est en commun ?",a:"La chasse s'est voulue internationale dès sa conception. L'idée était de permettre à des joueurs venant des quatre coins du monde d'échanger sur des points de vue. Je vous laisse en tirer vos conclusions.\nNb : ne parlant pas les 10 langues présentes dans la chasse, en cas de gros problème de traduction qui nous seraient remontés, nous en préviendrons les chasseurs."},
+  {n:25,src:"forum",date:"10/06/2020",themes:["Horloges","Carton"],q:"Est-ce que la carte postale du grenier est déchiffrable toute seule ? Et à propos des Horloges : Le premier post-it est illisible, sert-il quand même à quelque chose ? L'horloge \"cassée\" sur le côté gauche fait-elle partie du décor ou sert-elle à la résolution ?",a:"La carte du grenier peut être abordée seule (au moins en partie). Certaines cartes nécessitent d'avoir résolu d'autres cryptage avant d'être résolues entièrement. Nous nous sommes assurés que tous les éléments utiles pour la chasse au trésor soient lisibles. C'est à vous de trouver ce qui fait partie du décorum ou de la chasse. Pour la question bonus, la réponse est Oui 😉"},
+  {n:26,src:"forum",date:"12/06/2020",themes:["Horloges"],q:"Le dessin des engrenages sur le bureau des horloges est-il du décorum ? Peut-on supprimer un cran d'un des engrenages sans conséquences ?",a:"Pour la première partie de la question, c'est à vous de trouver s'il s'agit du décorum ou non. J'ai déjà donné des pistes dans des précédentes QR pour y arriver.\nPour la seconde partie de la question, de manière générale, supprimer un cran à un engrenage réduit son efficacité. Je précise, de manière générale."},
+  {n:27,src:"forum",date:"12/06/2020",themes:[],q:"L'indication supplémentaire 2 est une indication pour une énigme particulière ou pour la chasse dans sa globalité ?",a:"Pour le coup, c'est à vous de trouver."},
+  {n:28,src:"forum",date:"16/06/2020",themes:[],q:"Dans la salle de classe les 4 craies sont-elles à relier aux 4 arbres pour trouver un lieu ou autre chose ?",a:"Les 4 craies ont une importance, à savoir si c'est pour le jeu de société ou la chasse, c'est à vous de trouver."},
+  {n:29,src:"forum",date:"16/06/2020",themes:["Carton"],q:"Lorsqu'on décode les nombres du carton du grenier, faudra-t-il écrire 3, 6, 9, plus, ou tous les caractères pour voir apparaître une information compréhensible ?",a:"Je ne suis pas sûr de bien comprendre votre question. De manière générale, il faut résoudre entièrement un cryptage pour qu'une information pertinente en découle."},
+  {n:30,src:"forum",date:"18/06/2020",themes:[],q:"As-tu été déposer des objets sur différents spots possibles afin de créer de fausses pistes ?",a:"Non (amusé)"},
+  {n:31,src:"forum",date:"18/06/2020",themes:[],q:"Les 10 langues utilisées sur l'indice avec les 11 \"montres\", représentent-elles 10 pays différents rencontrés au cours de nos recherches sur les cartes postales timbrées ?",a:"Il s'agit simplement des langues dans lesquelles le jeu de société a été traduit. Rien de plus."},
+  {n:32,src:"forum",date:"23/06/2020",themes:[],q:"En Louisiane certains éléments m'ont permis de décoder le crypto, je retrouve des éléments presque similaires sur une des tuiles du jeu. Est-ce possible ou bien ce sont des choses différentes ?",a:"C'est plus que probable de trouver des éléments similaires entre les cartes postales et les tuiles puisque cela fait partie du jeu de société de faire deviner les tuiles avec des cartes postales."},
+  {n:33,src:"forum",date:"23/06/2020",themes:[],q:"Les tuiles du jeu concourent-elles directement au jeu, ou sont-elles indirectement utiles ?",a:"Les tuiles permettent de mieux comprendre la mécanique du jeu."},
+  {n:34,src:"forum",date:"26/06/2020",themes:[],q:"Les signes sur les caisses/boites de gauche du grenier sont-elles utiles pour décoder un crypto de cette pièce ?",a:"Nous avons vérifié à ce que tous les éléments utiles à la chasse soient lisibles par la grande majorité des gens. Je vous laisse en tirer vos conclusions."},
+  {n:35,src:"forum",date:"26/06/2020",themes:["CP9","Nid (pile-poil)"],q:"Une fois sur le spot, est-ce que toutes les énigmes peuvent contenir des indices pour avancer ou bien faut-il se contenter de l'énigme portant le numéro 9 ?",a:"Une fois sur le spot, vous avez normalement déjà tout résolu avant de creuser."},
+  {n:36,src:"forum",date:"03/06/2020",themes:[],q:"La chasse est-elle aussi liée à des légendes ou n'est-ce que le jeu ?",a:"Cette chasse est une légende dans l'univers scénaristique de GOL."},
+  {n:37,src:"forum",date:"03/06/2020",themes:[],q:"Dans la salle de classe le rapporteur est-il utile pour cette énigme ou donne-t-il une piste pour une autre énigme ? Son orientation a-t-elle une importance ? La bouteille qui coule est-elle utile pour la chasse ? Les couleurs de celle-ci sont-elles importantes ?",a:"Il y a plusieurs questions dans votre question. De manière générale, je ne peux répondre aux questions relatives à l'interprétation des éléments figurants sur une carte postale. Je peux répondre seulement aux éléments concernant la compréhension à la lecture de celles-ci."},
+  {n:38,src:"forum",date:"03/06/2020",themes:["CP9"],q:"L'énoncé 9 contient plusieurs consignes. Sont-elles à prendre de façon chronologique ou bien l'ordre est indifférent ?",a:"À vous de trouver."},
+  {n:39,src:"forum",date:"02/07/2020",themes:[],q:"La ville dans laquelle se trouve le coffre est-elle indiquée sur une des cartes servant à la chasse ?",a:"Je ne peux confirmer ou infirmer que le coffre est dans une ville."},
+  {n:40,src:"forum",date:"02/07/2020",themes:[],q:"En dehors du jeu, comment la chasse aurait-elle pu s'appeler ?",a:"Le nom aurait été le même puisqu'il fait partie d'un univers."},
+  {n:41,src:"forum",date:"02/07/2020",themes:[],q:"Sur la carte postale 'des étoiles' il y a des signes étranges sur le terrain. Qu'est-ce qu'on peut faire avec ça ?",a:"Je ne peux répondre à ce type de question, c'est à vous de trouver comment interpréter les éléments d'une carte et à discriminer ceux utiles de ceux faisant partie du jeu de société ou du décor."},
+  {n:42,src:"forum",date:"02/07/2020",themes:[],q:"Trouver un élément commun à une carte postale timbrée et à une île, est-ce à prendre comme un indice positif pour la chasse ou est-ce uniquement là pour le jeu de plateau ?",a:"Le jeu de société consiste à faire deviner l'emplacement de son île aux autres joueurs à l'aide de cartes postales. Je vous laisse en tirer vos conclusions."},
+  {n:43,src:"forum",date:"10/09/2020",themes:[],q:"Y a-t-il des éléments (lettres ou chiffres par exemple) cachés dans les visuels ? Par exemple sur la carte du marché on peut penser qu'il y a un 4 sur le mur tout à droite.",a:"Nous avons bien vérifié que tous les éléments nécessaires à la chasse soient lisibles sur les différents visuels.\nCependant, il peut y avoir des éléments dissimulés ou à interpréter dans une carte postale.\nEn l'occurrence, sur la carte du marché ce n'est pas un « 4 » sur le mur de droite. Il s'agit d'un triangle dessiné dont deux droites se prolongent."},
+  {n:44,src:"forum",date:"10/09/2020",themes:[],q:"Le 'philosophe' est-il une personne ayant une identité ? Identifiable dans le cadre du jeu ? Célèbre ?",a:"La réponse est oui. C'est même une étape très importante."},
+  {n:45,src:"forum",date:"15/09/2020",themes:[],q:"Est-il important d'identifier le Gardien de la Légende (ou sa représentation), puisqu'il ne nous abandonne pas et est toujours là pour nous ?",a:"Non il n'est pas important d'identifier le gardien de l'œuf. Cependant, il est très important d'identifier ce qui est toujours là pour vous."},
+  {n:46,src:"forum",date:"15/09/2020",themes:["CP9"],q:"Première question : Est-ce qu'il y a un ou plusieurs \"chien austral\" ? Deuxième question : pour l'énigme 9, si je donne juste les chiffres du carton à quelqu'un qui n'a jamais entendu parler de GOL, saurait-il résoudre ne serait-ce qu'une petite partie ?",a:"Il n'y a qu'un seul Chien Austral dans la chasse.\nJe ne peux vous dire si l'énigme 9 est celle du grenier ou pas.\nConcernant le carton du grenier, quelqu'un pourrait le comprendre en partie, mais ça serait plus de l'ordre d'une piste. Il lui serait impossible de le résoudre sans aucun autre élément."},
+  {n:47,src:"forum",date:"15/09/2020",themes:[],q:"Pour moi la petite aiguille d'une horloge indique les heures et la grande les minutes. Pour vous aussi ?",a:"C'est effectivement toujours le cas."},
+  {n:48,src:"forum",date:"18/09/2020",themes:[],q:"Concernant l'énigme 3, nous faut-il uniquement, stricto sensu, \"observer\" ce qui a été écrit ?",a:"La formule précise est stricto sensu « Observe ce qui y a été écrit » ce qui n'est pas tout à fait pareil."},
+  {n:49,src:"forum",date:"18/09/2020",themes:[],q:"Est-ce que les cartes postales du jeu sont rigoureusement les mêmes pour chaque pays ?",a:"La réponse à votre question est oui."},
+  {n:50,src:"forum",date:"18/09/2020",themes:[],q:"Pourquoi avoir préféré des chiffres arabes sur seulement 2 des nombreuses horloges que l'on peut trouver à travers la chasse alors que pour toutes les autres, ce sont des chiffres romains ?",a:"La différence entre chiffres arabes et romains pour les horloges n'est qu'esthétique pour cette carte."},
+  {n:51,src:"forum",date:"22/09/2020",themes:[],q:"Si on omet la Room, et indépendamment d'une carte : peux-t-on dire que la résolution des horloges a nécessairement besoin d'une information primordiale trouvée dans une autre énigme, ou est-ce que cette énigme se suffit à elle-même ?",a:"Pour totalement résoudre les horloges vous avez besoin d'une (ou plusieurs) information(s) primordiale(s) trouvée(s) précédemment. J'insiste sur « totalement »."},
+  {n:52,src:"forum",date:"22/09/2020",themes:[],q:"Dans la carte postale du bar. Devrais-je lire \"O,E\" (Deux lettres séparées par une virgule), \"zéro virgule E\" ou bien QE (deux lettres collées) ?",a:"Il ne s'agit pas de QE. Il s'agit d'un O,E. Si le O est la lettre O ou un zéro, c'est à vous de trouver."},
+  {n:53,src:"forum",date:"22/09/2020",themes:[],q:"Pouvez-vous nous donner les dimensions approximatives du \"coffre\" contenant la contremarque ?",a:"Approximativement, il mesure une quinzaine de centimètre de longueur, une dizaine de largeur et la même chose en hauteur."},
+  {n:54,src:"forum",date:"24/09/2020",themes:[],q:"Dans la carte postale de la salle de classe, les plaques de verre ou de plexiglas sur le bureau d'écolier ne sont-elles qu'un effet graphique ou bien faut-il en comprendre la présence ?",a:"Ces plaques ont une utilité. À vous de trouver si c'est en rapport avec la chasse ou le jeu de société."},
+  {n:55,src:"forum",date:"24/09/2020",themes:[],q:"Sur la carte postale du marché, il y a un objet brun à gauche du sac de pommes de terre. Qu'est-ce que c'est ?",a:"Il s'agit d'une pièce en bois. Elle sert probablement de repose pied."},
+  {n:56,src:"forum",date:"24/09/2020",themes:[],q:"Le livre ou les livres écrits par le romancier ont-ils une importance dans la résolution des énigmes ?",a:"Non, c'est uniquement le berceau du romancier que vous cherchez."},
+  {n:57,src:"forum",date:"29/09/2020",themes:[],q:"En ce moment, peut-on déterrer le coffre malgré les contraintes liées au Coronavirus ?",a:"Ça dépend d'où vous vous trouvez dans le monde."},
+  {n:58,src:"forum",date:"29/09/2020",themes:[],q:"La couleur rouge est-elle une couleur importante dans la chasse ? L'œuf est-il gardé par quelqu'un ?",a:"Malheureusement, je ne peux pas vous dire ce qui est important ou non dans la chasse.\nPour l'œuf d'or, il n'y a pas de gardien sur le lieu."},
+  {n:59,src:"forum",date:"29/09/2020",themes:[],q:"Ai-je raison de penser que certaines feuilles de route donnent plus d'indices que d'autres ? Suis-je désavantagé si je m'entête à ne jouer qu'avec les 10 cartes timbrées ?",a:"Les feuilles de routes sont toutes les mêmes, mis à part le code unique (votre identifiant joueur).\nIl n'y a que 10 cartes postales qui comprennent des énigmes pour la chasse ou du jeu de société."},
+  {n:60,src:"forum",date:"01/10/2020",themes:[],q:"J'ai téléchargé l'application La Quête des Gardiens. Deux îles semblent ne pas s'activer : la tortue et le kraken. Est-ce normal ?",a:"L'application La Quête des Gardiens n'a rien à voir avec la Chasse au Trésor. Il s'agit d'une application utilisée par Lubee ou ses distributeurs dans le cadre de salons."},
+  {n:61,src:"forum",date:"01/10/2020",themes:[],q:"La particularité du chat dans le grenier peut-elle, à elle seule, nous mener directement sur la bonne zone ?",a:"Non elle ne le peut pas. Ça aurait été un peu trop facile. 😊"},
+  {n:62,src:"forum",date:"01/10/2020",themes:[],q:"Est-ce que le texte des énigmes est forcément corrélé à l'ordre des cartes postales utiles à la chasse ?",a:"La réponse oui."},
+  {n:63,src:"forum",date:"06/10/2020",themes:[],q:"La résolution de la carte postale des horloges peut-elle se faire sans l'aide d'un ordinateur ? Uniquement avec du matériel scolaire.",a:"Si vous parlez de l'utilisation d'un ordinateur pour ses logiciels, vous pouvez mais ce n'est pas nécessaire.\nSi vous vous posez la question si des recherches par ordinateur sont nécessaires, c'est à vous de voir."},
+  {n:64,src:"forum",date:"06/10/2020",themes:[],q:"Est-ce que le coauteur anonyme, gardien de la légende de l'œuf d'or, dit Edward Preston doit être identifié pour avancer dans cette chasse ?",a:"Identifier Edward Preston ne vous aidera pas à trouver l'œuf d'or."},
+  {n:65,src:"forum",date:"06/10/2020",themes:[],q:"Dans la carte du grenier, nous n'arrivons pas à distinguer la zone géographique présente sur le globe terrestre. Est-il possible de nous l'indiquer ? Est-ce une cage à oiseaux suspendues au plafond ou un luminaire ?",a:"« Vous apercevez un globe terrestre avec une terre inconnue. Probablement l'emplacement présumé de l'Atlantide. »\n« Il s'agit d'une cage à oiseau suspendu. »\n« Ce sont des cartons avec des écritures illisibles. »"},
+  {n:66,src:"forum",date:"08/10/2020",themes:["Nid (pile-poil)"],q:"Lorsque l'on a trouvé le coffre, une clé est-elle nécessaire pour l'ouvrir ?",a:"Le coffre nécessite une manipulation particulière pour l'ouvrir mais rien de très compliqué. Le coffre suffit à lui-même pour effectuer cette action."},
+  {n:67,src:"forum",date:"08/10/2020",themes:[],q:"Faut-il se positionner à une époque non-contemporaine pour certaines énigmes ?",a:"C'est une très bonne question mais elle touche au décryptage.\nEn conseil de chasseur, je peux vous dire que de manière générale il faut suivre vos décryptages. Si ceux-ci vous plongent dans une autre époque il est toujours utile d'explorer cette piste."},
+  {n:68,src:"forum",date:"08/10/2020",themes:[],q:"Si un chasseur est sourd, peut-il résoudre toutes les énigmes ?",a:"La réponse est oui."},
+  {n:69,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Sur le ciel étoilé, il se trouve deux symboles étrangers. Un des symboles évoque peut-être une boussole ou un compas, est-ce une bonne piste ?",a:"Il n'y a pas besoin de boussole et de compas pour résoudre cette énigme."},
+  {n:70,src:"QR 3 ans",date:"10/05/2022",themes:["CP9"],q:"Dans une autre session de questions réponses, à propos du carton de la carte postale 9 tu avais dit que la limite de \"80\" aurait pu être dépassée. Avais-tu une limite ou pas ?",a:"Oui il y avait bien une limite."},
+  {n:71,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Par rapport au côté international de la chasse. Si je trouve une ville dans son alphabet d'origine, est-ce une mauvaise idée de la traduire dans mon alphabet ?",a:"Au moment où tu trouves la ville, garde-la dans son alphabet d'origine. (Attention je risque de revenir sur cet élément plus tard car cela fait partie de la structure de la chasse et beaucoup ne l'ont pas cerné)"},
+  {n:72,src:"QR 3 ans",date:"10/05/2022",themes:["CP9","Carton"],q:"Carte postale 9, admettons que j'ai tout résolu de la 0 à la 8. Si je m'attaque à la carte du grenier, suis-je capable de décrypter les chiffres du carton ?",a:"En partie."},
+  {n:73,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Carte postale 8, est-ce que tu as besoin que l'on trouve l'identité du romancier pour trouver son berceau ?",a:"Si c'était possible mais j'aurais fait une autre énigme."},
+  {n:74,src:"QR 3 ans",date:"10/05/2022",themes:["Spectre Ailé"],q:"Est-ce que le spectre ailé est issu d'un décryptage ?",a:"Le spectre ailé est bien issu d'un décryptage."},
+  {n:75,src:"QR 3 ans",date:"10/05/2022",themes:["Spectre Ailé"],q:"Est-ce que le spectre ailé est à découvrir à l'énigme 6 ou est-il découvert avant ?",a:"Il est découvert avant en décodant un crypto."},
+  {n:76,src:"QR 3 ans",date:"10/05/2022",themes:["Horloges","Chien austral"],q:"Carte postale 4, est-ce que voir le chien austral par l'origine de l'origine est la dernière chose à faire à cette étape ?",a:"Oui."},
+  {n:77,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Carte postale 2, est-ce que le panneau almanach peut nous aider à décrypter les horloges ?",a:"Complètement."},
+  {n:78,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Carte postale 4, les livres sur le bureau peuvent-ils donner une idée sur la méthode de décryptage ?",a:"Non."},
+  {n:79,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce que je peux réussir la chasse si je suis seul sur une île avec les 10 cartes postales, la carte, les infos de la Room 144 et les instruments de mesure ?",a:"En imaginant que tu as une bibliothèque bien fournie avec exactement les ouvrages dont tu as besoin, c'est possible. Ou du moins pas impossible."},
+  {n:80,src:"QR 3 ans",date:"10/05/2022",themes:["Mistake"],q:"Une précision par rapport à la carte Mistake, n'apporte-t-elle pas plus de confusions qu'autre chose ?",a:"Cette carte est arrivée assez tard dans la conception de la chasse. En faisant plusieurs vérifications, je me suis dit qu'une étape pouvait être mal interprétée ou donner plusieurs possibilités. La rajouter me permettait d'accentuer deux éléments, d'abord l'élément à trouver et arriver sur la notion de précision.\nA posteriori, je ne sais pas si l'ajout de cette élément était une bonne solution ou si les éléments initiaux auraient été suffisants."},
+  {n:81,src:"QR 3 ans",date:"10/05/2022",themes:["Carton","CP9"],q:"Carte Postale 9, si nous retirons tous les éléments type objets du grenier, est-il possible de résoudre le carton ?",a:"Le conseil que je peux vous donner, c'est de d'abord vous concentrer sur le carton et une fois le carton résolu de regarder le reste de la carte postale et il y a peut-être d'autres éléments à interpréter."},
+  {n:82,src:"QR 3 ans",date:"10/05/2022",themes:["Parallèle","Horloges"],q:"Est-ce que l'on peut trouver notre remontée à la parallèle à la carte postale 6 sans avoir résolu l'énigme des horloges de la carte postale 4 ?",a:"Oui c'est possible."},
+  {n:83,src:"QR 3 ans",date:"10/05/2022",themes:["Parallèle","Spectre Ailé"],q:"Lorsque je dois remonter vers le spectre ailé, est-ce que cela veut dire remonter (vers le nord) ou en direction de ?",a:"C'est bien en direction de (du spectre ailé)."},
+  {n:84,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce que notre position à la fin de la carte postale 6 est suggérée ? Est-ce qu'un élément de la carte postale peut le confirmer ?",a:"Non."},
+  {n:85,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Alors cela veut-il dire qu'en arrivant à la carte postale 7 nous savons que nous sommes au bon endroit ?",a:"Pas sûr. Ce n'est pas dit. (Relis bien les informations qui te sont données sur la feuille de route)"},
+  {n:86,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Atelier de couture (indications supplémentaires 3), est-ce que les bobines de couture donnent le même résultat que les craies de la salle de classe ?",a:"Non (étonné)"},
+  {n:87,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce qu'à la fin de la carte postale 6, nous sommes sur les terres ?",a:"En partie. (cette réponse donne une grosse indication sur ce qui est attendu à ce niveau là)"},
+  {n:88,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce que des villes décryptées peuvent constituer des fausses pistes ?",a:"Cela arrive une fois ! Mais très rapidement vous comprenez pourquoi c'est une fausse piste.\nIl y a une info pour vous faire comprendre que cette ville est la fausse trouvaille et il y a bien quelque chose qui est caché en plus."},
+  {n:89,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Comment distinguer les éléments d'une carte postale qui font partie du jeu ou de la chasse ?",a:"Par exemple dans la carte avec la lune, est-ce qu'il y a d'autres éléments dans la carte postale qui te permettent de déduire cette carte ? (voici ma réponse)"},
+  {n:90,src:"QR 3 ans",date:"10/05/2022",themes:["Feuille de route","Progressiomètre"],q:"Si une énigme nécessite d'utiliser les solutions d'énigmes précédentes, quel ordre utiliser ?",a:"Celui de la feuille de route."},
+  {n:91,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Carte postale 4, on termine sur l'hémisphère nord ou au sud ?",a:"Pas de commentaires."},
+  {n:92,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Certaines cartes postales font référence à une ville comme Londres, Rome… Est-ce que toutes les cartes postales font référence à une ville ?",a:"Non toutes les cartes ne font pas référence au niveau du visuel à une ville.\nSi on enlevait les \"thèmes\" des cartes, il est toujours possible de résoudre la chasse au trésor."},
+  {n:93,src:"QR 3 ans",date:"10/05/2022",themes:["Carton"],q:"Avons-nous besoin de la profondeur pour résoudre l'énigme du carton ?",a:"La notion de profondeur est en effet la profondeur à laquelle le coffre est enterré. Et ceci est caché dans une énigme de la chasse."},
+  {n:94,src:"QR 3 ans",date:"10/05/2022",themes:["CP9","Villes"],q:"Carte postale 9, les énigmes donnent-elles comme résultats des noms de villes ? Certaines villes doivent-elles être utilisées pour résoudre le carton ?",a:"Vous devez résoudre les énigmes précédentes pour résoudre le carton. Je ne peux pas être plus précis."},
+  {n:95,src:"QR 3 ans",date:"10/05/2022",themes:["Horloges","Échecs"],q:"Carte postale 4, les pièces d'échec sont-elles utiles pour résoudre les horloges ou sont-elles une énigme à part entière ?",a:"C'est à vous de trouver, si cet élément fait partie de la chasse ou non."},
+  {n:96,src:"QR 3 ans",date:"10/05/2022",themes:["Horloges"],q:"Carte postale 4, pour les horloges devons-nous trouver un lieu situé au Moyen-Orient ?",a:"La question est trop précise, je ne peux pas répondre."},
+  {n:97,src:"QR 3 ans",date:"10/05/2022",themes:["Horloges"],q:"Carte postale 4, combien d'étapes sont nécessaires pour arriver à la réponse finale ?",a:"Vous avez besoin de quelque chose en dehors du jeu pour résoudre cette énigme. (Je ne sais pas comment répondre à votre question donc je vous donne cette information)"},
+  {n:98,src:"QR 3 ans",date:"10/05/2022",themes:["Carton","CP9"],q:"Tu as laissé entendre qu'il fallait avoir tout résolu avant pour résoudre l'énigme du carton, mais tu as dit aussi qu'il fallait se concentrer uniquement sur le carton pour le résoudre.",a:"Si tu prends tout ce qui précède la carte postale 9 et le carton, tu auras résolu cette partie. Je ne dis pas qu'il n'y a pas autre chose."},
+  {n:99,src:"QR 3 ans",date:"10/05/2022",themes:["Carton","Zone"],q:"Est-il possible d'avoir une idée de la zone du trésor (ville par exemple) sans avoir résolu le carton ?",a:"Pour la zone, oui c'est possible."},
+  {n:100,src:"QR 3 ans",date:"10/05/2022",themes:["Chien austral","Horloges"],q:"Par rapport au chien austral, quand j'ai résolu mon énigme des horloges je vois le chien austral par l'origine des origines. En terme de tracé, est-ce que le chien austral a une autre utilité ?",a:"Le chien austral a une utilité, à partir du moment où tu as fait ce que tu devais faire sur la carte. Tu es \"heureux\" et tu peux continuer dans la chasse."},
+  {n:101,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"A propos de l'IS avec l'atelier de couture, est-ce qu'elle a été construite comme les autres cartes postales du jeu ?",a:"Il y a un thème qu'il faut enlever. Dans ce thème, il y a des éléments qui ne servent pas. Dans cette carte, vous trouverez des clins d'œil sur chaque énigme (pas aussi fort que des confirmations)."},
+  {n:102,src:"QR 3 ans",date:"10/05/2022",themes:["CP9","Carton"],q:"Carte postale 9, est-ce que l'énigme du carton se décode vers un texte, des numéros ?",a:"C'est compliqué de répondre à cette question."},
+  {n:103,src:"QR 3 ans",date:"10/05/2022",themes:["Nid (pile-poil)"],q:"Existe-t-il une confirmation au sein de la chasse qui permet de confirmer le nid avant de partir creuser ?",a:"Avant de partir creuser, vous aurez tous les éléments nécessaires pour savoir où creuser. Il n'y a pas d'énigme à résoudre sur le spot."},
+  {n:104,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Si à un moment donné de la chasse je découvre une forteresse, peut-elle m'aider à avancer ?",a:"Pas vraiment."},
+  {n:105,src:"QR 3 ans",date:"10/05/2022",themes:["MHF"],q:"Question sur l'architecture de la chasse. Qu'est-ce que l'on cherche si on devait chercher quelque chose de visible sur la carte ?",a:"C'est une très bonne question mais je ne peux pas y répondre. Je vais juste vous donner une info : c'est original."},
+  {n:106,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce que la chasse n'aurait pas pu être réalisée avec une seule carte postale ?",a:"Je peux répondre oui mais ce n'est pas en votre faveur. Car avec une seule carte la chasse ne serait pas du tout pareille."},
+  {n:107,src:"QR 3 ans",date:"10/05/2022",themes:["Room 144"],q:"Dans la room 144, est-ce que la date de fin du compte à rebours a une autre importance que sa correspondance éventuelle avec une phase de lune ?",a:"La date n'a pas été choisie au hasard, mais nous aurions pu nous en passer.\nL'origine du compte à rebours était de s'assurer que chaque joueur puisse être à égalité."},
+  {n:108,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce qu'il est intéressant de discuter d'une des cartes postales avec un ami marin ?",a:"Oui, mais c'est le genre de question qui peut vous piéger car nous n'avons pas forcément la même carte dans la tête."},
+  {n:109,src:"QR 3 ans",date:"10/05/2022",themes:[],q:"Est-ce que les énigmes ont été mises en ordre par difficulté et dans un ordre servant la chasse ?",a:"Dans un ordre servant la chasse oui, mais pas dans un ordre de difficulté."},
+  {n:110,src:"QR 3 ans",date:"10/05/2022",themes:["Nid (pile-poil)"],q:"Est-ce qu'une équipe a déjà le nid ?",a:"Pas à ma connaissance."},
+  {n:111,src:"QR 3 ans",date:"10/05/2022",themes:["Nid (pile-poil)"],q:"Est-ce que le nid correspond à la zone finale ?",a:"[silence] oui."},
+  {n:112,src:"QR 3 ans",date:"10/05/2022",themes:["Spectre Ailé"],q:"Est-ce que le spectre est un point visible sur la carte du monde MHF ?",a:"Oui le spectre est visible."},
+  {n:113,src:"QR 3 ans",date:"10/05/2022",themes:["Parallèle"],q:"Est-ce que la parallèle dont il est question dans la feuille de route se trouve dans plusieurs cartes postales ?",a:"Je ne répondrai pas à cette question."},
+  {n:114,src:"QR 3 ans",date:"10/05/2022",themes:["Feuille de route","Toile","MHF"],q:"Est-ce que les traits que nous devons tracer sur la carte sont seulement les traits évoqués sur la feuille de route ou doit-on en trouver certains par nous-même ?",a:"Je vais dire \"oui\" mais j'ai peur de vous envoyer sur une fausse piste."},
+  {n:115,src:"QR 3 ans",date:"10/05/2022",themes:["Feuille de route","Toile","MHF"],q:"Alors est-ce que les traits évoqués sur la feuille de route sont suffisants ?",a:"Le truc c'est que les traits sont indiqués par la combinaison de la feuille de route et des cartes postales."},
+  {n:116,src:"QR 3 ans",date:"10/05/2022",themes:["MHF"],q:"Est-ce que le nom des cartes (MHF) est important ?",a:"C'est anecdotique."},
+  {n:117,src:"QR 3 ans",date:"10/05/2022",themes:["Nid (pile-poil)","Carton","Progressiomètre"],q:"Personne n'a le nid et personne n'a résolu le carton. Comment cela se fait que quelqu'un soit en tête ?",a:"Il y a peut-être des choses à trouver avant le carton et peut-être que tout n'a pas été encore trouvé."},
+  {n:118,src:"QR 3 ans",date:"10/05/2022",themes:["Carton"],q:"Est-ce que le carton peut être décodé de plusieurs façons ?",a:"Oui."},
+  {n:119,src:"QR 3 ans",date:"10/05/2022",themes:["Room 144"],q:"Est-ce que la room 144 aurait pu être appelée room 89 ?",a:"Cela aurait été moins joli, c'est anecdotique par rapport à la résolution de la chasse."},
+  {n:120,src:"QR 3 ans",date:"10/05/2022",themes:["Conseil"],q:"Analyse générale du créateur sur la structure de la chasse.",a:"La chasse a été conçue de manière à ce qu'elle soit abordable au début mais qu'ensuite il y ait des niveaux de résistance.\nRestez simple au début et si vous ne trouvez pas, cherchez plus compliqué. Ne faites pas l'inverse.\n\nSi je dois schématiser : la carte du monde donne la zone. La résolution feuille de route + cartes postales donnent des indications au niveau de la zone de la cache. La combinaison des deux donne le spot.\n\nQuand je suis sur une carte postale, je suis dans le lieu de cette carte postale, au sens du lieu de l'énigme. Si je trouve une solution écrite dans une langue, c'est parce que je me trouve sur place. Et c'est dans cette langue là que les choses sont formulées."},
+  {n:121,src:"QR 4 ans",date:"10/05/2023",themes:["Carton"],q:"Je découvre cette carte postale du grenier et je vois ce carton. Est-ce que je pourrais décoder ce carton sans regarder les éléments dans le grenier ? Si je me focalise simplement sur ce carton avec tout ce que j'ai appris, ça me suffit ?",a:"Dans un premier temps, oui."},
+  {n:122,src:"QR 4 ans",date:"10/05/2023",themes:["Mouches"],q:"Sur la toile d'araignée en bas à gauche, est-ce que ça change quelque chose la position des mouches ?",a:"Si les mouches sont à cet endroit, c'est à dire qu'il y a eu l'intention de les mettre à cet endroit."},
+  {n:123,src:"QR 4 ans",date:"10/05/2023",themes:["Mouches"],q:"D'accord donc le fait de les supprimer ça changerait quelque chose aussi ?",a:"Ne pas avoir les mouches là où elles sont, soit ne pas les avoir, ou les avoir à un autre endroit, ça change."},
+  {n:124,src:"QR 4 ans",date:"10/05/2023",themes:["Nid (pile-poil)","CP9"],q:"Est-ce qu'on peut trouver le nid sans utiliser la carte postale du grenier ?",a:"Non tu ne peux pas. Tu peux t'en rapprocher. Mais pour creuser tu as besoin du grenier."},
+  {n:125,src:"QR 4 ans",date:"10/05/2023",themes:["Carton"],q:"Ce carton qui peut se décrypter de plusieurs façons, est-ce que ça donne toujours le même résultat ?",a:"Non. (Grosse info)\nJe ne dis pas plus que ce que j'ai dit."},
+  {n:126,src:"QR 4 ans",date:"10/05/2023",themes:["Carton","Feuille de route"],q:"Imaginons que j'ai perdu ma feuille de route. Est-ce que je peux quand même résoudre le carton malgré tout ?",a:"En partie."},
+  {n:127,src:"QR 4 ans",date:"10/05/2023",themes:["Carton","CP9"],q:"J'ai l'impression que j'ai trouvé un bouquin via un décryptage dans la carte postale du grenier, est-ce que ce livre m'aiderait à décoder le carton ?",a:"C'est trop spécifique comme question, je ne peux pas répondre."},
+  {n:128,src:"QR 4 ans",date:"10/05/2023",themes:["CP9"],q:"Sur cette carte du grenier il y a des vêtements et des tringles. J'y vois deux chiffres romains, un chiffre 5 et un chiffre 2. Peux-tu confirmer ?",a:"Je regarde… je ne les vois pas. J'ai regardé de manière à ce que l'information soit utile."},
+  {n:129,src:"QR 4 ans",date:"10/05/2023",themes:["Carton"],q:"Par rapport aux chiffres du carton, si j'en supprime certains, est-ce que ça m'aide à décrypter le carton ? Et 28, est-ce que je le lis comme un 8 et 2 ?",a:"Non supprimer ça ne va pas t'aider.\n28 c'est 28.\nLes barres sont justement là pour marquer l'écart entre deux chiffres."},
+  {n:130,src:"QR 4 ans",date:"10/05/2023",themes:["MHF","Villes"],q:"Par rapport au nom des villes en général, sont-ils toujours complets ou parfois abrégés ?",a:"Si c'est abrégé pour te faire deviner, tu gardes la version complète. La référence c'est la carte que vous avez trouvé sur votre chemin."},
+  {n:131,src:"QR 4 ans",date:"10/05/2023",themes:["Mistake","Villes","Horloges"],q:"Par rapport à la carte \"mistake\", ça me permet de trouver un nouveau lieu à partir d'un autre, est-ce normal ? Ça permet de corriger deux lieux ?",a:"Oui c'est normal. Non, ça n'en corrige qu'un.\nCette carte a été mise très tardivement dans le jeu. C'était une manière d'insister sur un élément."},
+  {n:132,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"On reconnaît des lieux dans certaines cartes postales. Est-ce que ces lieux pourraient être complètement remplacés par autre chose ?",a:"Ça dépend les cartes. D'un point de vue de la chasse, généralement ce n'est pas là que la grosse information se cache.\nDans l'histoire, les gardiens de légendes communiquent entre eux en s'envoyant des cartes postales sur les lieux qu'ils découvrent à travers le monde."},
+  {n:133,src:"QR 4 ans",date:"10/05/2023",themes:["Le nombre 12"],q:"Il y a le recto et le verso. Si le verso était blanc, est-ce que ça nous pénalise ? Et si je supprime le chiffre 12, est-ce que je peux finir la chasse ?",a:"L'information est essentiellement au niveau des éléments mis en évidence (timbre et autre).\nIl y a quelque chose avec les nombres qui saute aux yeux. Ce serait dommage d'effacer les chiffres de 12."},
+  {n:134,src:"QR 4 ans",date:"10/05/2023",themes:["Sudoku"],q:"J'ai une question par rapport au sudoku. Les craies servent-elles juste à affiner une réponse trouvée dans le sudoku ?",a:"C'est pile le genre de question auquel je ne peux pas répondre."},
+  {n:135,src:"QR 4 ans",date:"10/05/2023",themes:["Sudoku"],q:"Il était normal qu'il y ait deux chiffres entourés ensemble dans le sudoku ?",a:"Il ne faut pas se prendre la tête sur le sudoku, c'est assez simple. C'est même une des énigmes visible sur le dos de la boîte du jeu.\nDans une chasse au trésor, gardez le côté \"keep it simple\" et n'abordez la complexité que lorsque toutes les options simples ont été testées."},
+  {n:136,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Sur la carte suivante, l'almanach, la police de caractère a-t-elle été choisie avec soin ?",a:"Cette police de caractère a été choisie avec soin et elle est indispensable.\nEn enchaînant tu vas être amené à utiliser ce que tu as trouvé précédemment."},
+  {n:137,src:"QR 4 ans",date:"10/05/2023",themes:["MHF","Parallèle","Chien austral","Horloges"],q:"Est-ce qu'il faut partir du chien austral pour remonter la parallèle ?",a:"Non.\nQuand certains disent les horloges c'est un nœud, le nœud des horloges pour moi c'est le chien austral."},
+  {n:138,src:"QR 4 ans",date:"10/05/2023",themes:["MHF","Parallèle","Chien austral"],q:"Beaucoup d'entre nous pensent avoir trouvé ce chien austral. Mais on ne doit pas partir du chien austral pour remonter la parallèle ?",a:"Non, non."},
+  {n:139,src:"QR 4 ans",date:"10/05/2023",themes:["MHF","Parallèle"],q:"Est-ce que cette remontée décale la carte MHF ? Est-ce que ça fait décaler les placements ?",a:"Non. C'est une construction graphique, la carte ne bouge pas. Vous devez pointer, ou faire, ou dessiner, tracer, construire sur la carte. Et c'est la manière qui vous est décrite et proposée pour le faire."},
+  {n:140,src:"QR 4 ans",date:"10/05/2023",themes:["MHF","Parallèle"],q:"Mais est-ce que cette parallèle à remonter est par rapport aux étoiles pour autant ?",a:"C'est typiquement le genre de question auquel je ne peux pas répondre."},
+  {n:141,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Sur la carte postale de La Nouvelle-Orléans, est-ce que je peux changer l'une ou l'autre note de la partition ? Est-ce que ça m'empêcherait d'accéder au trésor ?",a:"Non. C'est typiquement le genre de questions auxquelles je ne réponds pas, mais c'est pas de la grosse info."},
+  {n:142,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Je trouve une deuxième ville qui est le même résultat qu'une ville dans la carte postale précédente. Est-ce une confirmation ou un nouveau point de départ ?",a:"Globalement quand vous retrouvez quelque chose c'est une confirmation. Vous êtes sur la bonne voie quand les fils sont connectés.\nIl y a un endroit dans la chasse où il y a un leurre pour ceux qui n'allaient pas gratter plus loin."},
+  {n:143,src:"QR 4 ans",date:"10/05/2023",themes:["Spot","Nid (pile-poil)"],q:"Est-ce qu'il y a de l'eau à proximité de la cache ? De l'eau douce ou de l'eau salée ?",a:"Je ne vais pas rentrer sur des éléments topologiques au niveau de la cache. Le trésor est bien enterré — dans le sol sous terre — et dans un lieu public et accessible.\nIl y aurait une bonne anecdote à raconter en tout cas."},
+  {n:144,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Par rapport à la profondeur, le chiffre 1, est-ce 0,5 + 0,5 ou le chiffre 1 en entier ?",a:"En fonction du moment où il intervient dans la chasse, il peut avoir différentes saveurs.\n\"Avant de partir laisse 1 pour la profondeur\" : c'est une bonne indication sur la distance à laquelle le coffre est enterré."},
+  {n:145,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"La zone de la taille d'une ville peut être trouvée sans le carton. Peut-on décoder le carton avant d'avoir trouvé la zone ?",a:"Oui."},
+  {n:146,src:"QR 4 ans",date:"10/05/2023",themes:["Zone","MHF"],q:"Et cette zone est-elle une ville écrite sur la carte MHF ?",a:"La résolution du carton vous permet de supprimer une grosse partie de la carte.\nÇa se resserre très fort et la carte + le carton vous confirme vraiment la zone. Avoir absolument tout résolu vous donne l'emplacement (le spot)."},
+  {n:147,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Est-ce que l'endroit où on arrête sa toile (consigne 8) diffère de celui où nous nous revoyons ?",a:"Tout à fait."},
+  {n:148,src:"QR 4 ans",date:"10/05/2023",themes:["Parallèle"],q:"À l'étape 6 \"avant de reprendre ta route remonte la parallèle\", cette phrase est contre-intuitive — doit-on faire intervenir une notion de téléportation ?",a:"Non, c'est vraiment les informations que j'ai données."},
+  {n:149,src:"QR 4 ans",date:"10/05/2023",themes:["Horloges"],q:"En ayant la bonne méthode de résolution des horloges, l'ordre dans lequel on prend en compte les horloges impacte-t-il l'endroit où on arrive ?",a:"Ça vous complique la vie de ne pas les prendre dans le bon ordre."},
+  {n:150,src:"QR 4 ans",date:"10/05/2023",themes:["Nid (pile-poil)","Zone"],q:"À ta connaissance un chasseur a-t-il atteint le nid par le passé ?",a:"J'ai déjà vu quelqu'un qui avait la bonne zone (au sens large)."},
+  {n:151,src:"QR 4 ans",date:"10/05/2023",themes:["CP9"],q:"Par rapport à la carte postale du grenier, on voit un châssis de fenêtre composé de quatre fois six carrés. Est-ce exact ?",a:"Non c'est quatre rectangles.\nPeut-être que mes problèmes de vue peuvent vous aider.\nJe ne vois rien de très important devant."},
+  {n:152,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Par rapport au mot \"clé\", j'ai trouvé beaucoup de serrures. Est-ce que ce mot clé est quelque chose que l'on retrouve régulièrement ?",a:"C'est un mot qu'on retrouve souvent dans une chasse au trésor. Il ne faut pas y chercher plus que la référence.\nLes cartes postales que le marché vous a indiqué de prendre, vous avez besoin de toutes celles-là.\nSur la boîte, les serrures et images ne changent rien pour la chasse."},
+  {n:153,src:"QR 4 ans",date:"10/05/2023",themes:["Nid (pile-poil)","Zone","Spot","Progressiomètre"],q:"Le nid représente la zone finale, mais par finale est-ce que tu entends la zone générale ou bien la zone de la cache ?",a:"Le nid c'est vraiment l'endroit où est enterré le coffre. C'est le spot final.\nJe n'ai vu personne avoir le pile-poil. J'ai vu quelqu'un avoir la zone au sens large.\nBien souvent les gens ne testent pas, ils émettent des idées mais ne vont pas jusqu'au bout.\nJ'ai vraiment cru que ça allait être trouvé. Des gens passent à côté du nid tous les jours."},
+  {n:154,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"À la fin de l'étape 7 de la feuille de route, suis-je positionné à l'oméga ?",a:"Oui, c'est l'oméga qu'il faut. Tout à fait."},
+  {n:155,src:"QR 4 ans",date:"10/05/2023",themes:["Carton"],q:"Dans l'indice 3, il y a le chiffre 30 mais les couleurs sont différentes, est-ce normal ?",a:"Ça n'a pas d'importance, au niveau des couleurs il n'y a pas d'astuce cachée."},
+  {n:156,src:"QR 4 ans",date:"10/05/2023",themes:["Toile","Mouches"],q:"La toile sur la carte postale doit-elle être interprétée cryptographiquement ou métaphoriquement ?",a:"Les deux. C'est vraiment un des éléments importants."},
+  {n:157,src:"QR 4 ans",date:"10/05/2023",themes:[],q:"Sur l'indice 3, au dessus du thermomètre se trouve un livre. Faut-il l'identifier ?",a:"Non, si la lecture n'est pas aisée, il n'y a pas besoin."},
+  {n:158,src:"Noël 2024",date:"01/12/2024",themes:["Horloges"],q:"Les horloges fonctionnent-elles de deux manières différentes ?",a:"Oui, mais une seule fournit la bonne solution."},
+  {n:159,src:"Noël 2024",date:"02/12/2024",themes:["Nid (pile-poil)"],q:"Est-ce que le nid peut être dans un champ ou un parc public d'une ville ?",a:"Le lieu où se cache le nid est public. Tout lieu qui correspond à cette définition est susceptible de cacher le nid. Cependant, attention : un champ appartient souvent à un propriétaire privé et, de ce fait, n'est pas public."},
+  {n:160,src:"Noël 2024",date:"03/12/2024",themes:["Chien austral","Parallèle"],q:"Est-ce que le chien austral peut nous aider dans le choix de la parallèle à remonter ?",a:"Non, le chien austral est à trouver. Il vous servira plus tard, mais pas pour la parallèle."},
+  {n:161,src:"Noël 2024",date:"04/12/2024",themes:["Carton","MHF","Zone","Villes"],q:"Une fois les villes des énigmes trouvées, la zone trouvée et le carton décodé, avons-nous encore besoin de la carte MHF ?",a:"Non, vous pouvez la ranger et aller creuser."},
+  {n:162,src:"Noël 2024",date:"05/12/2024",themes:["Carton","CP9","Villes"],q:"Peut-on résoudre le carton en ne conservant qu'une seule ville par énigme ?",a:"Il peut y avoir plusieurs villes à trouver par carte, et pas que des villes sur certaines."},
+  {n:163,src:"Noël 2024",date:"06/12/2024",themes:["Mouches","CP9"],q:"Les mouches du grenier ont-elles un rôle de confirmateur, un rôle de crypto ou un rôle d'indice ?",a:"C'est un indice confirmatoire sous forme cryptique. Les mouches sont à prendre en compte pour résoudre pleinement cette énigme."},
+  {n:164,src:"Noël 2024",date:"07/12/2024",themes:["Conseil"],q:"À ce stade du jeu, quels conseils donneriez-vous aux chasseurs novices et avancés ?",a:"a. Pour les nouveaux joueurs : Soyez critiques sur les solutions existantes. Faites vos propres recherches. Vous pouvez rattraper très vite grâce aux anciens qui ont partagé beaucoup d'informations. Votre difficulté sera de bien trier.\n\nb. Pour les joueurs avancés : Vérifiez vos solutions et regardez si vous n'avez pas raté un détail. N'allez pas dans la complexité mais dans la sagacité."},
+  {n:165,src:"Noël 2024",date:"08/12/2024",themes:["Repère","Nid (pile-poil)"],q:"Arrivé à la fin de la chasse, faut-il trouver un repère ou plusieurs repères différents ?",a:"Un seul repère."},
+  {n:166,src:"Noël 2024",date:"09/12/2024",themes:["CP9","Zone","Spot"],q:"Si la carte du grenier n'existait pas, serait-il quand même possible de trouver la zone ?",a:"Oui, mais pas le spot final."},
+  {n:167,src:"Noël 2024",date:"10/12/2024",themes:["Spot","Nid (pile-poil)","Repère"],q:"A-t-on besoin d'une information trouvée sur la zone du spot pour avancer dans les décryptages ?",a:"Non, sur le spot final, il y a un repère à trouver avant de trouver le nid. Il est plus facile de le trouver sur place mais c'est tout."},
+  {n:168,src:"Noël 2024",date:"11/12/2024",themes:["Parallèle","MHF"],q:"Remonter la parallèle signifie-t-il que l'on dispose déjà de deux droites parallèles ou qu'il faut tracer la parallèle à une droite existante ?",a:"Vous devez tracer la parallèle à une droite existante."},
+  {n:169,src:"Noël 2024",date:"12/12/2024",themes:["Spectre Ailé"],q:"Puis-je confirmer le lieu qui serait mon spectre ailé en allant sur sa page Wikipédia ?",a:"Oui, en ayant décrypté l'énigme. Wikipédia ou Internet peut servir de confirmateur quant à la représentation figurée du terme \"spectre ailé\"."},
+  {n:170,src:"Noël 2024",date:"13/12/2024",themes:["Indications supplémentaires"],q:"L'indicateur de distance sur la cible de l'année passée s'est-il fait selon la carte du jeu ou représente-t-il une distance réelle à vol d'oiseau ?",a:"Il s'agit d'une distance réelle à vol d'oiseau."},
+  {n:171,src:"Noël 2024",date:"14/12/2024",themes:["Gardien"],q:"Le Gardien de la légende de l'Œuf d'Or est-il un humain et a-t-il un lien quelconque avec un œuf ?",a:"Oui, il est humain. Non, il n'a pas de lien, hormis qu'il est le dernier gardien de l'Œuf d'or."},
+  {n:172,src:"Noël 2024",date:"15/12/2024",themes:["Toile","CP9","Mouches"],q:"À propos de la toile du grenier. Est-il déconseillé de déplacer, sur leurs fils respectifs, les mouches (c'est-à-dire faire un déplacement vertical) ?",a:"Ne touchez pas aux mouches, pauvre fou !"},
+  {n:173,src:"Noël 2024",date:"16/12/2024",themes:["Carton"],q:"Le carton du grenier portant des nombres contient-il deux cryptos dont le décryptage de l'un nécessite d'avoir décrypté l'autre ?",a:"Oui, je n'en dirai pas plus :-)"},
+  {n:174,src:"Noël 2024",date:"17/12/2024",themes:["Jeu de plateau"],q:"Les tuiles du jeu de plateau seront-elles utiles dans notre quête de l'œuf d'or ?",a:"Pas pour les énigmes à proprement parler. Elles vous aideront à distinguer ce qui est important sur les cartes postales pour le jeu et ce qui l'est pour la chasse."},
+  {n:175,src:"Noël 2024",date:"18/12/2024",themes:["MHF","Origine"],q:"L'origine de l'Origine est-elle de nature matérielle ou conceptuelle ?",a:"L'origine de l'Origine est un concept. Cela a été inventé pour le jeu et est décrit différemment en dehors du jeu."},
+  {n:176,src:"Noël 2024",date:"19/12/2024",themes:["Ce qui est toujours là","Parallèle"],q:"Est-ce que \"ce qui est toujours là pour nous où que l'on soit\" peut nous aider à trouver et remonter la parallèle ?",a:"En quelque sorte. Pour être plus précis, pas à la trouver, mais bien pour savoir ce qu'il faut faire pour la remonter."},
+  {n:177,src:"Noël 2024",date:"20/12/2024",themes:["Carton","Nid (pile-poil)"],q:"Peut-on trouver le deuxième décodage du carton sans avoir trouvé précisément le Nid ?",a:"Oui... court, simple et précis comme réponse."},
+  {n:178,src:"Noël 2024",date:"21/12/2024",themes:[],q:"Des échanges que tu as avec les joueurs, y en a-t-il beaucoup qui ont déjà été creuser ?",a:"Il y a au moins une tentative chaque mois en période calme, ainsi que plusieurs fois par semaine durant les congés."},
+  {n:179,src:"Noël 2024",date:"22/12/2024",themes:["Chien austral"],q:"Y a-t-il un élément qui confirme mon chien ?",a:"Oui, une fois trouvé, des recherches sur le chien vous donnent de grandes confirmations sur sa nature. Plus tard, quand tout se \"goupille\", il n'y a plus de doute."},
+  {n:180,src:"Noël 2024",date:"23/12/2024",themes:["Carton","MHF"],q:"Pouvez-vous confirmer que la nature de la première solution du carton me permet déjà de supprimer une grande partie de la carte du monde ?",a:"Oui, ce que vous trouverez vous permettra de réduire drastiquement la carte du monde."},
+  {n:181,src:"Noël 2024",date:"24/12/2024",themes:["Feuille de route"],q:"Y a-t-il quelque chose à trouver sur la feuille de route en dehors du texte et du code-barres ?",a:"Excellente question ! Oui."},
+  {n:182,src:"QR 6 ans S1",date:"25/04/2025",themes:["Parallèle","Horloges"],q:"Y a-t-il plusieurs jeux de parallèles ? C'est-à-dire plusieurs parallèles avec un angle X et plusieurs parallèles avec un angle Y ?",a:"Non, il n'y a qu'un seul jeu de parallèles. Il faut prendre tous les éléments qu'on a trouvés sur notre parcours.\nJe confirme que sans avoir résolu les horloges on peut remonter la parallèle."},
+  {n:183,src:"QR 6 ans S1",date:"25/04/2025",themes:["Conseil"],q:"Pourquoi la chasse bloque-t-elle toujours six ans après ?",a:"Le Covid a chamboulé pas mal l'organisation. Gardens of Legends était ma première grosse chasse. Il y a un élément que j'avais sous-pondéré dans les variables de calibrage."},
+  {n:184,src:"QR 6 ans S1",date:"25/04/2025",themes:["Nid (pile-poil)"],q:"Est-ce que le trésor se trouve dans le nid ou en dehors du nid ?",a:"C'est bien dans le nid. Le trésor est bien enterré, sous terre. Il n'y a pas de couche d'eau au-dessus. Ça ne sert à rien de plonger dans un lac."},
+  {n:185,src:"QR 6 ans S1",date:"25/04/2025",themes:["Le nombre 12"],q:"Comment se fait-il que l'affranchissement des cartes postales (valeur 12) soit le même pour toutes ?",a:"Ce 12 représente quelque chose dans la chasse. C'est aussi partie du lore de mes chasses au trésor. Beaucoup de joueurs ont vu que c'était un multiple qui se retrouvait dans pas mal de mes chasses."},
+  {n:186,src:"QR 6 ans S1",date:"25/04/2025",themes:["Carton"],q:"Si j'ai le résultat du premier décryptage du carton, est-il suffisant pour pouvoir décrypter le second ?",a:"Non pas suffisant mais c'est nécessaire.\nLe carton permet de réduire la zone de recherche sur la carte. Par exemple si vous obtenez un message en espagnol alors le trésor est caché dans un lieu où l'on parle espagnol."},
+  {n:187,src:"QR 6 ans S1",date:"25/04/2025",themes:["MHF","Toile"],q:"As-tu été contraint à un certain degré d'imprécision lors du tracé de la toile ?",a:"Non. Tous les éléments vous sont donnés pour la méthode de tracé et la précision requise. Il y a une IS qui parle clairement de l'importance de la précision."},
+  {n:188,src:"QR 6 ans S2",date:"23/05/2025",themes:["Logo"],q:"Si le logo n'existait pas, pourrais-je tout de même terminer la chasse ?",a:"La réponse, c'est oui."},
+  {n:189,src:"QR 6 ans S2",date:"23/05/2025",themes:[],q:"Sur la carte avec la cabine téléphonique, le mot almanach aide-t-il à résoudre l'énigme ?",a:"Almanach est à garder en tête pour résoudre l'entièreté de la carte postale. Quelque chose de ce mot est très important pour confirmer que vous êtes sur la bonne piste. Grosse info : il y a un lien avec la carte postale suivante."},
+  {n:190,src:"QR 6 ans S2",date:"23/05/2025",themes:[],q:"Peut-on résoudre la chasse sans Kanji ?",a:"Il y a une indication supplémentaire qui répond à cette question. Répondre de cette manière permet de pas mal orienter sur la solution."},
+  {n:191,src:"QR 6 ans S2",date:"23/05/2025",themes:["Feuille de route"],q:"La feuille de route nous dit que notre route sera semée d'embûches. Est-ce une notion importante ?",a:"Ce sont des pièges à éviter. Il y a parfois plusieurs façons de commencer à résoudre une énigme. Mais il n'y en a qu'une seule qui mène à une solution complète et cohérente. L'énigme la plus représentative de ça, c'est celle des horloges.\nUne fausse piste, c'est un vrai piège. Ici, c'est plus comme un carrefour avec des cul-de-sac et un seul bon chemin.\nCe n'est pas nécessaire d'y passer, mais si vous avancez trop sans confirmation, c'est que vous êtes sûrement dans un cul-de-sac."},
+  {n:192,src:"QR 6 ans S2",date:"23/05/2025",themes:["MHF"],q:"Plonger la carte (du monde) dans un plus grand espace, peut-il être utile ?",a:"Non. Utilisez-la comme elle est."},
+  {n:193,src:"QR 6 ans S2",date:"23/05/2025",themes:["Feuille de route"],q:"Vous avez dit qu'il y a autre chose à trouver sur la feuille de route que les consignes et le code barre. J'ai recopié le texte sur une feuille à part. Suis-je mal engagé ?",a:"Oui, grosse info ici : la feuille de route est très bien protégée pour éviter le partage et l'anti-triche. Vous devez résoudre votre propre feuille de route. Si vous la partagez vous risquez de vous prendre un mur."},
+  {n:194,src:"Info",date:"04/06/2025",themes:["Feuille de route"],q:"[Clarification officielle sur la feuille de route]",a:"Au démarrage du jeu, un système anti-partage/triche existait. Ce système n'est plus actif depuis le 20 mai 2019.\nSi vous avez téléchargé la feuille de route après cette date, vous n'êtes pas concerné.\nPour avoir la bonne version : videz votre cache, allez sur guardiansoflegends.com, téléchargez via le forum."},
+  {n:195,src:"QR 6 ans S3",date:"20/06/2025",themes:["Feuille de route","MHF"],q:"Dans la feuille de route au point 4, \"de là où tu es\", comment peut-on savoir où l'on est ?",a:"Il s'agit bien du lieu où vous arrivez à la fin de l'énigme 3."},
+  {n:196,src:"QR 6 ans S3",date:"20/06/2025",themes:["Toile"],q:"Sur la carte postale, y a-t-il des éléments géométriques (mesures de distance, angles) nécessaires pour tisser notre toile ?",a:"Grosse question. Désolé, je ne peux pas répondre à cette question."},
+  {n:197,src:"QR 6 ans S3",date:"20/06/2025",themes:[],q:"Certaines cartes postales semblent indiquer des indices pour la chasse comme celle d'une menuiserie où l'on trouve un C+E. Est-ce un indice pour la chasse ?",a:"Non, il y a uniquement 10 cartes postales pour la chasse. Le C+E, c'est un clin d'œil pour Céline + Enzo, un mot doux pour mon épouse."},
+  {n:198,src:"QR 6 ans S3",date:"20/06/2025",themes:["Parallèle","Spectre Ailé"],q:"Nous devons remonter la parallèle vers le Spectre Ailé. Cela signifie-t-il qu'on peut finir dans l'eau et non sur la terre ferme ?",a:"Oui, on peut finir dans l'eau. Vous disposez d'un point de départ, d'une direction, d'une distance. À vous de voir comment les utiliser.\nJ'ai dit \"on peut finir\" [dans l'eau]. Ce n'est pas contradictoire avec la notion de parallèle. Les deux ensemble donnent une bonne indication."},
+  {n:199,src:"QR 6 ans S3",date:"20/06/2025",themes:["MHF"],q:"Pouvez-vous confirmer qu'il y a une seule carte au trésor à trouver dans le jeu ? Y a-t-il un piège ?",a:"Non, il n'y a aucun piège, c'est même assez simple. Nous n'avons créé qu'une seule carte au trésor. Sur le site web en question, il n'y a qu'une et une seule carte nécessaire pour le jeu."},
+  {n:200,src:"QR 6 ans S3",date:"20/06/2025",themes:["Feuille de route"],q:"Quel est le cahier des charges de la feuille de route donnée aux artistes ?",a:"C'est un croquis dessiné à la main (et avec Photoshop) avec le texte au centre. À part les couleurs et la grande ligne en diagonale, tous les autres éléments étaient dans le cahier des charges. J'ai ajouté des éléments non utiles pour que les artistes n'aient pas d'informations."},
+  {n:201,src:"QR 6 ans S4",date:"25/07/2025",themes:["Nid (pile-poil)"],q:"Est-il possible d'aller chercher le trésor à n'importe quel moment de l'année, à n'importe quelle heure ?",a:"Oui, il suffit d'être équipé en fonction des saisons et des conditions climatiques. Le lieu n'est pas dangereux. Le trésor n'est ni caché sur le flanc d'une falaise, ni au fond d'un lac."},
+  {n:202,src:"QR 6 ans S4",date:"25/07/2025",themes:[],q:"L'incertitude de la 6 n'est-elle présente que dans cette énigme ou est-elle plus générale ?",a:"L'incertitude de la 6 ne concerne que cette énigme, elle ne s'entend que dans ce contexte."},
+  {n:203,src:"QR 6 ans S4",date:"25/07/2025",themes:["Feuille de route"],q:"Puis-je réussir la chasse uniquement avec la feuille de route rédigée dans ma langue ?",a:"Oui, les petites variations entre les langues sont négligeables. Elles apportent de minuscules indices, mais rien d'exceptionnel."},
+  {n:204,src:"QR 6 ans S4",date:"25/07/2025",themes:["Mouches"],q:"Peut-on ajouter des fils à la toile d'araignée de la carte postale du carton ?",a:"J'ai galéré sur cette réponse. Dans un premier temps, non. Pour être plus précis : oui, vous pouvez ajouter des fils, mais pas n'importe où, pas n'importe comment. Vous pourriez ajouter des fils verticaux, mais pas horizontaux."},
+  {n:205,src:"QR 6 ans S4",date:"25/07/2025",themes:["Carton"],q:"Pour le second décryptage du carton, a-t-on besoin d'un support extérieur à la chasse ?",a:"Je ne peux pas répondre en l'état. Ce que je peux dire c'est qu'à ce stade de la chasse, vous avez tous les éléments nécessaires en votre possession pour le résoudre."},
+  {n:206,src:"QR 6 ans S4",date:"25/07/2025",themes:["MHF","Villes"],q:"J'ai commencé à tracer sur ma carte dès la première ville trouvée. Y a-t-il un moyen de discerner les tracés à conserver ?",a:"Oui il y a des tracés à réaliser, certains éléments vous indiquent ce que vous devez faire. Il existe même dans la chasse quelque chose qui emphase l'importance de certains tracés."},
+  {n:207,src:"QR 6 ans S4",date:"25/07/2025",themes:["Progressiomètre"],q:"Si tu devais sortir un nouveau progressiomètre, est-ce que la position du premier aurait changé ?",a:"Je vais garder cette question et y répondre au prochain QR. Sans langue de bois, avec peut-être une annonce un peu choc."},
+  {n:208,src:"QR 6 ans S5",date:"25/08/2025",themes:["Horloges"],q:"Pour les horloges, je trouve deux solutions : une maritime et une cryptographique. Laquelle choisir ?",a:"À vous de décider. Dans cette chasse il y a rarement de doutes quand une étape est correctement résolue. Fiez-vous à celle qui vous semble la plus logique, la plus congruente. Partez sur ce qui vous semble le plus stable."},
+  {n:209,src:"QR 6 ans S5",date:"25/08/2025",themes:["Feuille de route","Continent blanc"],q:"Feuille de route point 4 : \"continue ta route vers le continent blanc\". Doit-on viser un point précis sur ce continent ?",a:"On continue sa route en direction du continent blanc et on s'arrête uniquement lorsqu'on aperçoit le chien austral grâce à l'origine de l'origine. Il ne s'agit pas de viser un point précis sur le continent blanc, mais de suivre une logique de progression jusqu'à un point déterminé."},
+  {n:210,src:"QR 6 ans S5",date:"25/08/2025",themes:["CP9","Carton"],q:"Concernant le carton du grenier, est-ce que 35 donne le même résultat que 53 ?",a:"Non, intervertir ces chiffres pourrait compliquer inutilement votre compréhension. Restez rigoureux avec les données telles qu'elles sont fournies, chaque chiffre a son importance."},
+  {n:211,src:"QR 6 ans S5",date:"25/08/2025",themes:["Carton"],q:"Tu as dit que \"supprimer des chiffres du carton n'aidait pas\". Cela veut dire que les deux messages contiennent le même nombre de caractères ?",a:"Oui, \"les messages\" contiennent un même nombre de caractères."},
+  {n:212,src:"QR 6 ans S5",date:"25/08/2025",themes:["MHF","CP9","Zone"],q:"Est-ce que l'on peut jeter la carte MHF quand on arrive en CP9 ?",a:"Oui en ce qui concerne la grande carte du jeu. Une fois la zone identifiée avec précision, vous disposerez de suffisamment d'éléments pour valider le spot sans revenir à la MHF."},
+  {n:213,src:"QR 6 ans S5",date:"25/08/2025",themes:["Spot","Nid (pile-poil)"],q:"Est-ce qu'il y a une méta-énigme à résoudre sur le terrain ?",a:"Non, ce qui est nécessaire doit être résolu depuis chez vous. Sur place il ne vous reste plus qu'à appliquer votre solution concrètement."},
+  {n:214,src:"QR 6 ans S5",date:"25/08/2025",themes:["Conseil"],q:"Quel niveau de certitude peut-on atteindre avant de partir creuser ?",a:"Avec une résolution complète et cohérente, vous partez avec un niveau de certitude très élevé, autour de 95%-99%. Vous vous direz : \"c'est trop évident pour que ça ne soit pas ça.\"\nUn mélange d'espoir et d'analyse fait partie du charme de toute chasse au trésor."},
+  {n:215,src:"QR 6 ans S6",date:"19/09/2025",themes:["MHF","Toile"],q:"Si notre toile nécessitait un triangle rectangle, son angle droit ferait-il nécessairement 90 degrés ou la méthode pourrait-elle imposer 92 degrés ?",a:"La chasse insiste sur l'importance de la précision. Si c'est 90°, c'est 90°. Si c'est 92°, c'est 92°.\nLe tracé doit être conforme à ce que les énigmes demandent, sans approximation."},
+  {n:216,src:"QR 6 ans S6",date:"19/09/2025",themes:["Nid (pile-poil)","Creuser"],q:"Sur le spot final, aurais-tu laissé un élément distinctif reconnaissable ?",a:"Oui, j'ai posé une pierre sur le nid. Cependant je ne peux pas garantir qu'elle sera toujours présente le jour où vous irez.\nCet élément me sert de repère personnel mais il ne doit pas remplacer la résolution des énigmes."},
+  {n:217,src:"QR 6 ans S6",date:"19/09/2025",themes:["MHF","Ce qui est toujours là"],q:"Ce qui est toujours là pour nous, est-il présent sur la carte où nous réalisons nos tracés ?",a:"Non, ce qui est toujours là pour vous n'apparaît pas sur la carte. Il s'agit d'un élément d'une autre nature."},
+  {n:218,src:"QR 6 ans S6",date:"19/09/2025",themes:["MHF","Parallèle"],q:"Peut-on trouver la droite dont on doit réaliser la parallèle avant l'étape 6 ?",a:"Non, vous n'avez pas encore suffisamment d'éléments avant l'étape 6. Il faut progresser dans l'ordre prévu."},
+  {n:219,src:"QR 6 ans S6",date:"19/09/2025",themes:["MHF"],q:"Chaque lieu trouvé de l'énigme E0 à E8 est-il l'objet d'un tracé géométrique sur la MHF ?",a:"Chaque lieu trouvé peut donner lieu à un tracé ou à un pointage sur la carte, mais seulement lorsque cela est pertinent — c'est-à-dire que l'énigme vous y invite explicitement ou implicitement."},
+  {n:220,src:"QR 6 ans S6",date:"19/09/2025",themes:["CP9"],q:"Je crois que quelqu'un a piqué tous les jouets, pourra-t-on quand même trouver l'œuf ?",a:"Oui, avec ces éléments et en ayant résolu ce qui précède, vous pourrez encore trouver l'œuf."},
+  {n:221,src:"QR 6 ans S6",date:"19/09/2025",themes:["MHF"],q:"Le tracé de notre route sur la MHF permet-il de confirmer notre zone ?",a:"Oui, c'est même précisément ce tracé et les éléments associés qui vous indiqueront la zone. Le cheminement est essentiel pour valider votre zone."},
+  {n:222,src:"QR 6 ans S6",date:"19/09/2025",themes:["MHF"],q:"Le tracé suit-il l'ordre narratif des énigmes ou un ordre basé sur leurs solutions géographiques ?",a:"Les tracés suivent l'ordre narratif des énigmes, c'est-à-dire l'ordre dans lequel elles apparaissent et se résolvent."},
+  {n:223,src:"QR 6 ans S6",date:"19/09/2025",themes:["Zone","Spot","MHF","CP9","Ce qui est toujours là","Nid (pile-poil)"],q:"Peux-tu résumer les derniers éléments pour trouver la zone, le spot et le pile-poil ?",a:"Avant de trouver la zone, vous êtes sur la carte du monde.\nAvant de trouver le spot, vous êtes avec la feuille de route et la carte du monde.\nAvant de trouver le pile-poil, vous êtes avec celui qui est toujours là pour vous, et la carte postale numéro 9."},
+  {n:"AMA-1",src:"AMA Noël",date:"12/07/2025",themes:["MHF","Zone"],q:"Sur la carte du monde, la zone est-elle localisée ou déchiffrée ?",a:"Les deux."},
+  {n:"AMA-2",src:"AMA Noël",date:"12/07/2025",themes:["Zone","Mouches"],q:"Les mouches n'ont-elles de sens qu'après avoir trouvé la localisation, ou doivent-elles être utilisées avant comme une étape pour la trouver ?",a:"Les mouches doivent être utilisées avant. Quand vous aurez tout ce qu'il faut et que vous sentirez un blocage, les mouches vous aideront à trouver la localisation."}
+];
+
+// Extract all unique themes
+const allThemes = [...new Set(DATA.flatMap(d => d.themes))].filter(t => t).sort((a,b) => a.localeCompare(b, 'fr'));
+
+let activeThemes = new Set();
+let searchTerm = '';
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function highlightText(text, term) {
+  if (!term) return escapeHtml(text);
+  const escaped = escapeHtml(text);
+  const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return escaped.replace(re, '<span class="highlight">$1</span>');
+}
+
+function render() {
+  const list = document.getElementById('list');
+  const countEl = document.getElementById('count');
+  const term = searchTerm.toLowerCase();
+
+  const filtered = DATA.filter(d => {
+    if (activeThemes.size > 0 && !d.themes.some(t => activeThemes.has(t))) return false;
+    if (term) {
+      const hay = (d.q + ' ' + d.a).toLowerCase();
+      if (!hay.includes(term)) return false;
+    }
+    return true;
+  });
+
+  countEl.textContent = filtered.length + ' / ' + DATA.length;
+
+  list.innerHTML = filtered.map(d => {
+    const themeTags = d.themes.map(t => `<span>${escapeHtml(t)}</span>`).join('');
+    return `<div class="qa-card">
+      <div class="qa-meta">
+        <span class="qa-num">#${d.n}</span>
+        <span class="qa-source">${escapeHtml(d.src)}</span>
+        <span class="qa-date">${escapeHtml(d.date)}</span>
+        <div class="qa-themes">${themeTags}</div>
+      </div>
+      <div class="qa-question"><strong>Q :</strong> ${highlightText(d.q, searchTerm)}</div>
+      <div class="qa-answer"><strong>R :</strong> ${highlightText(d.a, searchTerm)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTags() {
+  const container = document.getElementById('tags');
+  const allTag = `<span class="tag all-tag${activeThemes.size === 0 ? ' active' : ''}" data-theme="__all__">Tous</span>`;
+  const themeTags = allThemes.map(t =>
+    `<span class="tag${activeThemes.has(t) ? ' active' : ''}" data-theme="${escapeHtml(t)}">${escapeHtml(t)}</span>`
+  ).join('');
+  container.innerHTML = allTag + themeTags;
+}
+
+document.getElementById('tags').addEventListener('click', e => {
+  const tag = e.target.closest('.tag');
+  if (!tag) return;
+  const theme = tag.dataset.theme;
+  if (theme === '__all__') {
+    activeThemes.clear();
+  } else {
+    if (activeThemes.has(theme)) activeThemes.delete(theme);
+    else activeThemes.add(theme);
+  }
+  renderTags();
+  render();
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchTerm = e.target.value;
+  render();
+});
+
+renderTags();
+render();
+</script>
+</body>
+</html>
