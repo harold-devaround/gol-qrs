@@ -1,0 +1,124 @@
+# GOL-QRS — Documentation Projet
+
+## Vue d'ensemble
+
+Application web d'analyse pour le jeu de piste GOL (Game Of Life). Quatre onglets :
+1. **Q&R** — Analyse de QR codes
+2. **Carte MHF** — Dessin géométrique sur la WorldMap calibrée (fonctionnalité principale)
+3. **Cartes Postales** — Galerie de 10 cartes postales avec lightbox
+4. **Tuiles** — Galerie de 24 tuiles avec lightbox
+
+## Architecture
+
+```
+index.html                  ← Point d'entrée, charge Fabric.js UMD + app.js
+js/
+  app.js                    ← Routage par onglets, lazy-init des sections
+  map/
+    map-section.js          ← Orchestrateur : câble canvas, store, tools, UI
+    fabric-canvas.js        ← Wrapper Fabric.js v7 : zoom/pan, rendu overlay, snap
+    store.js                ← ShapeStore : CRUD, sélection, visibilité, snapshot/restore
+    history.js              ← Undo/redo par snapshots (max 80)
+    measurement.js          ← Conversion px ↔ cm, calibration, formatage
+    save-manager.js         ← Persistance localStorage (slots nommés)
+    shapes.js               ← Factories, renderers, hit-test, moveShape, shapeInfo
+    tools/
+      base.js               ← ToolBase abstraite (activate, mouse handlers, snap)
+      manager.js             ← Gestion des 10 outils + raccourcis clavier
+      select.js              ← Outil de sélection/déplacement
+      point.js, segment.js, line.js, circle.js, triangle.js
+      median.js, bisector.js, angle.js
+      parallel.js
+  viewers/
+    image-viewer.js          ← Galerie + lightbox pour CP et Tuiles
+  qr/
+    qr-section.js            ← Section analyse QR
+  utils/
+    events.js                ← EventEmitter léger (on/off/emit)
+    geometry.js              ← Fonctions math (distance, angles, intersections, etc.)
+css/
+  main.css                   ← Thème sombre, tokens CSS, tous les styles
+tests/
+  geometry.test.js           ← 72 tests
+  store.test.js              ← 16 tests
+  events.test.js             ← 9 tests
+  shapes.test.js             ← 57 tests
+  measurement.test.js        ← 19 tests
+  history.test.js            ← 12 tests
+  save-manager.test.js       ← 15 tests
+  select-tool.test.js        ← 8 tests
+  TOTAL                      ← 208 tests
+```
+
+## Stack technique
+
+| Élément      | Version | Usage                                       |
+|-------------|---------|---------------------------------------------|
+| Fabric.js   | 7.2.0   | Rendu canvas, chargé via `<script>` UMD     |
+| Vitest      | 4.1.4   | Framework de test (`npx vitest run`)         |
+| ES Modules  | —       | `"type": "module"` dans package.json        |
+| Pas de bundler | —    | Fichiers servis directement                 |
+
+## Fonctionnalités implémentées
+
+### Carte MHF (section principale)
+- **Image WorldMap** : `2019_WorldMap_MHF_1.2x1.6m.jpg` — 160cm (L) × 120cm (H)
+- **10 outils de dessin** : Point (P), Segment (S), Ligne (L), Cercle (C), Triangle (T), Médiane (M), Médiatrice (B), Angle (A), Parallèle (H), Sélection (V)
+- **Snap** : accrochage aux points existants (sommets, intersections, centres)
+- **Snap angulaire** : CTRL enfoncé → direction snappée sur multiples d'angle configurable (15°, 30°, 45°, 90°). Segment et Ligne.
+- **Calibration multi-ratio** : ratio hauteur (H), largeur (L), moyen (M) — hauteur par défaut. Boutons de sélection dans la barre d'action.
+- **Unités px ↔ cm** : toggle switch animé, conversion en temps réel
+- **Panneau propriétés** : type, mesures, couleur, épaisseur, rayon (cercles), label (toutes formes), affichage label (checkbox), visibilité, cercles concentriques
+- **Undo/Redo** : 80 niveaux, boutons + Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z
+- **Zoom/Pan** : molette, boutons +/−, fit (F), space+drag pour pan
+- **Sauvegarde/chargement** : slots nommés en localStorage avec métadonnées + options (unité, ratio, snap, vue)
+- **Barre de statut** : coordonnées temps réel, zoom, outil actif
+- **Constructions** : médianes et médiatrices auto pour les triangles
+
+### Galeries (CP & Tuiles)
+- Grille responsive avec miniatures
+- Lightbox plein écran avec navigation
+
+### Patterns architecturaux
+- **Event-driven** : `EventEmitter` pour la communication inter-modules
+- **Shapes = POJOs** : pas de classes, sérialisation facile
+- **Store centralisé** : source unique de vérité pour les formes
+- **Snapshot-based undo** : deep clone de l'état complet
+- **Séparation** : Store (état) → Canvas (rendu) ← Tools (entrée)
+
+## Thème CSS
+
+- Fond : `#0f1117`, surfaces : `#1a1d27`
+- Accent : or `#c9a44c`
+- Police : Segoe UI
+- Tokens : radius 8px, transitions 0.15s
+
+## Commandes
+
+```bash
+npm test           # npx vitest run — lance les 166 tests
+npm run test:watch # vitest en mode watch
+```
+
+## Historique des modifications
+
+| Date       | Modification                                                                 |
+|-----------|-----------------------------------------------------------------------------|
+| —         | Architecture initiale : 4 onglets, modules ES, 97 tests                    |
+| —         | Migration Fabric.js v7, `fabric-canvas.js` en remplacement de `canvas.js`  |
+| —         | Audit qualité : suppression fichiers morts, fix memory leak, 154 tests     |
+| —         | Fix ghosting overlay, édition rayon cercle, système multi-save, 166 tests  |
+| —         | Toggle switch px/cm animé                                                   |
+| —         | Fix focus label (guard `_editingProps`), calibration 120cm/160cm, multi-ratio UI |
+| —         | Raccourcis clavier Ctrl+Z/Y : listeners sur `document` + garde input       |
+| 2026-04-11| Création `.github/copilot-instructions.md` et `PROJECT.md`                 |
+| 2026-04-11| Labels sur toutes les formes + showLabel, fond blanc labels, save/load options, fix Ctrl+Z/Y, fix label list update, 177 tests |
+| 2026-04-11| showLabel=true par défaut, visibilité labels par type (dropdown), 176 tests |
+| 2026-04-11| Fix sélection : single-select par défaut, multi-select avec SHIFT, Escape global pour désélectionner, 184 tests |
+| 2026-04-11| Fix collision IDs après reload (syncNextId), 187 tests |
+| 2026-04-11| Recyclage d'IDs : gap-filling + releaseId sur suppression, 191 tests |
+| 2026-04-11| Outil Parallèle (H) : construction d'un segment parallèle à une ligne/segment (3 étapes : ref, start, projection ortho), 194 tests |
+| 2026-04-11| Overlays jaunes (#f1c40f) épais (2.5px) pour tous les outils de construction, 194 tests |
+| 2026-04-11| Snap angulaire CTRL : `snapToAngle()` dans geometry.js, wiring segment + line, pas configurable (15°/30°/45°/90°) dans la barre d'action, persistance options, 201 tests |
+| 2026-04-11| Cercles concentriques : `generateConcentrics()` dans shapes.js, UI dans panneau propriétés (pas + nombre), 208 tests |
+| 2026-04-11| Sauvegarde/restauration de la vue (zoom + centre) : `getViewState()`/`setViewState()` dans fabric-canvas, persistance dans options, restauration au chargement initial et après load slot, 208 tests |
