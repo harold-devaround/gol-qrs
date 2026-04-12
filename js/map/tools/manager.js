@@ -9,6 +9,7 @@ import { MedianTool } from './median.js';
 import { BisectorTool } from './bisector.js';
 import { AngleTool } from './angle.js';
 import { ParallelTool } from './parallel.js';
+import { PerpendicularTool } from './perpendicular.js';
 
 /**
  * Manages tool lifecycle, switching, and event dispatch.
@@ -30,6 +31,7 @@ export class ToolManager extends EventEmitter {
       new BisectorTool(),
       new AngleTool(),
       new ParallelTool(),
+      new PerpendicularTool(),
     ];
 
     // Inject context

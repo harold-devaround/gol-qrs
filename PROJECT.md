@@ -24,11 +24,11 @@ js/
     shapes.js               ← Factories, renderers, hit-test, moveShape, shapeInfo
     tools/
       base.js               ← ToolBase abstraite (activate, mouse handlers, snap)
-      manager.js             ← Gestion des 10 outils + raccourcis clavier
+      manager.js             ← Gestion des 11 outils + raccourcis clavier
       select.js              ← Outil de sélection/déplacement
       point.js, segment.js, line.js, circle.js, triangle.js
       median.js, bisector.js, angle.js
-      parallel.js
+      parallel.js, perpendicular.js
   viewers/
     image-viewer.js          ← Galerie + lightbox pour CP et Tuiles
   qr/
@@ -47,7 +47,8 @@ tests/
   history.test.js            ← 12 tests
   save-manager.test.js       ← 15 tests
   select-tool.test.js        ← 8 tests
-  TOTAL                      ← 208 tests
+  perpendicular-tool.test.js ← 20 tests
+  TOTAL                      ← 228 tests
 ```
 
 ## Stack technique
@@ -63,7 +64,7 @@ tests/
 
 ### Carte MHF (section principale)
 - **Image WorldMap** : `2019_WorldMap_MHF_1.2x1.6m.jpg` — 160cm (L) × 120cm (H)
-- **10 outils de dessin** : Point (P), Segment (S), Ligne (L), Cercle (C), Triangle (T), Médiane (M), Médiatrice (B), Angle (A), Parallèle (H), Sélection (V)
+- **11 outils de dessin** : Point (P), Segment (S), Ligne (L), Cercle (C), Triangle (T), Médiane (M), Médiatrice (B), Angle (A), Parallèle (H), Perpendiculaire (X), Sélection (V)
 - **Snap** : accrochage aux points existants (sommets, intersections, centres)
 - **Snap angulaire** : CTRL enfoncé → direction snappée sur multiples d'angle configurable (15°, 30°, 45°, 90°). Segment et Ligne.
 - **Calibration multi-ratio** : ratio hauteur (H), largeur (L), moyen (M) — hauteur par défaut. Boutons de sélection dans la barre d'action.
