@@ -318,17 +318,20 @@ export class MapCanvas extends EventEmitter {
     const el = this.el;
     // Track all active touch pointers by ID
     const active = new Map(); // pointerId → PointerEvent
+    // Stable ordered pair of IDs for the current pinch gesture
+    let pinchIds = [];
 
     const getPinchDist = () => {
-      const pts = [...active.values()];
-      return pts.length >= 2
-        ? Math.hypot(pts[1].clientX - pts[0].clientX, pts[1].clientY - pts[0].clientY)
-        : 0;
+      const p0 = active.get(pinchIds[0]);
+      const p1 = active.get(pinchIds[1]);
+      if (!p0 || !p1) return 0;
+      return Math.hypot(p1.clientX - p0.clientX, p1.clientY - p0.clientY);
     };
     const getPinchCenter = () => {
-      const pts = [...active.values()];
-      if (pts.length < 2) return null;
-      return { x: (pts[0].clientX + pts[1].clientX) / 2, y: (pts[0].clientY + pts[1].clientY) / 2 };
+      const p0 = active.get(pinchIds[0]);
+      const p1 = active.get(pinchIds[1]);
+      if (!p0 || !p1) return null;
+      return { x: (p0.clientX + p1.clientX) / 2, y: (p0.clientY + p1.clientY) / 2 };
     };
 
     // Capture phase: fires before Fabric's bubble-phase pointer listeners
@@ -339,6 +342,8 @@ export class MapCanvas extends EventEmitter {
         // 2nd finger arrived — take over gesture, don't let Fabric see this event
         e.stopPropagation();
         if (!this._pinching) {
+          // Lock in the stable pair of pointer IDs for this pinch session
+          pinchIds = [...active.keys()].slice(0, 2);
           this._pinching = true;
           this._lastPinchDist = getPinchDist();
           this._lastPinchCenter = getPinchCenter();
@@ -381,6 +386,7 @@ export class MapCanvas extends EventEmitter {
         this._pinching = false;
         this._lastPinchDist = 0;
         this._lastPinchCenter = null;
+        pinchIds = [];
       }
     };
 

@@ -95,8 +95,10 @@ export function initMap(container) {
   });
   toolsBackdropEl.addEventListener('click', closeTools);
   // Close toolbar panel when orientation switches to landscape
+  let _toolsResizeTimer = null;
   window.addEventListener('resize', () => {
-    if (!isPortrait()) closeTools();
+    clearTimeout(_toolsResizeTimer);
+    _toolsResizeTimer = setTimeout(() => { if (!isPortrait()) closeTools(); }, 150);
   });
 
   // Render shapes via canvas callback
