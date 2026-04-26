@@ -43,12 +43,13 @@ tests/
   store.test.js              ← 16 tests
   events.test.js             ← 9 tests
   shapes.test.js             ← 57 tests
-  measurement.test.js        ← 19 tests
+  measurement.test.js        ← 33 tests
   history.test.js            ← 12 tests
   save-manager.test.js       ← 15 tests
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
-  TOTAL                      ← 242 tests
+  fabric-canvas-touch.test.js← 24 tests
+  TOTAL                      ← 266 tests
 ```
 
 ## Stack technique
@@ -128,3 +129,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-26| Optimisation mobile : pinch-to-zoom + pan 2 doigts (fabric-canvas), panneau props slide-in avec backdrop + bouton toggle flottant, touch targets ≥ 40px, masquage texte action bar, barre de statut compacte, auto-ouverture props sur sélection, 242 tests |
 | 2026-04-26| Fix pinch-to-zoom mobile : remplacement touch events par pointer events en capture phase (intercepte avant Fabric.js), `touch-action: none` sur canvas, emit `cancel` pour annuler l'action en cours, 242 tests |
 | 2026-04-26| Barre d'outils portrait mobile : `@media (orientation: portrait)` — toolbar masquée, remplacée par bouton flottant bas-gauche + panneau horizontal slide-up, `closeTools()` on orientation change, 242 tests |
+| 2026-04-26| Fix pinch zoom : `this.el` → `upperCanvasEl` (bonne cible), `stopImmediatePropagation`, `touch-action:none` sur upper canvas, mise à jour `active` map sur tout `pointermove`, 266 tests |
