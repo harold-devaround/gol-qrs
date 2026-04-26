@@ -48,7 +48,7 @@ tests/
   save-manager.test.js       ← 15 tests
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
-  TOTAL                      ← 228 tests
+  TOTAL                      ← 242 tests
 ```
 
 ## Stack technique
@@ -73,7 +73,8 @@ tests/
 - **Undo/Redo** : 80 niveaux, boutons + Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z
 - **Zoom/Pan** : molette, boutons +/−, fit (F), space+drag pour pan
 - **Sauvegarde/chargement** : slots nommés en localStorage avec métadonnées + options (unité, ratio, snap, vue)
-- **Barre de statut** : coordonnées temps réel, zoom, outil actif
+- **Barre de statut** : coordonnées temps réel, GPS (lon/lat), zoom, outil actif
+- **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut, calculées à partir des graduations Mercator (±80° lat, ±180° lon)
 - **Constructions** : médianes et médiatrices auto pour les triangles
 
 ### Galeries (CP & Tuiles)
@@ -123,3 +124,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-11| Snap angulaire CTRL : `snapToAngle()` dans geometry.js, wiring segment + line, pas configurable (15°/30°/45°/90°) dans la barre d'action, persistance options, 201 tests |
 | 2026-04-11| Cercles concentriques : `generateConcentrics()` dans shapes.js, UI dans panneau propriétés (pas + nombre), 208 tests |
 | 2026-04-11| Sauvegarde/restauration de la vue (zoom + centre) : `getViewState()`/`setViewState()` dans fabric-canvas, persistance dans options, restauration au chargement initial et après load slot, 208 tests |
+| 2026-04-26| Coordonnées GPS lon/lat dans les propriétés des points et barre de statut, calibration Mercator depuis les graduations 15° de la carte, 242 tests |
