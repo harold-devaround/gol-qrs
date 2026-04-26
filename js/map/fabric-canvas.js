@@ -309,54 +309,83 @@ export class MapCanvas extends EventEmitter {
   }
 
   /* ── Touch gestures (pinch-to-zoom + 2-finger pan) ─── */
-
+  /*
+   * Uses pointer events in capture phase so we intercept BEFORE Fabric.js
+   * bubble-phase listeners. stopPropagation() on the 2nd+ touch prevents
+   * Fabric from seeing multi-touch as drawing actions.
+   */
   _setupTouch() {
     const el = this.el;
-    const pinchDist = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
-    const pinchCenter = (t0, t1) => ({
-      x: (t0.clientX + t1.clientX) / 2,
-      y: (t0.clientY + t1.clientY) / 2,
-    });
+    // Track all active touch pointers by ID
+    const active = new Map(); // pointerId → PointerEvent
 
-    el.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 2) {
-        this._pinching = true;
-        this._lastPinchDist = pinchDist(e.touches[0], e.touches[1]);
-        this._lastPinchCenter = pinchCenter(e.touches[0], e.touches[1]);
-        // Cancel any active single-touch tool action
-        this._panning = false;
-        this._panStart = null;
-      } else {
-        this._pinching = false;
+    const getPinchDist = () => {
+      const pts = [...active.values()];
+      return pts.length >= 2
+        ? Math.hypot(pts[1].clientX - pts[0].clientX, pts[1].clientY - pts[0].clientY)
+        : 0;
+    };
+    const getPinchCenter = () => {
+      const pts = [...active.values()];
+      if (pts.length < 2) return null;
+      return { x: (pts[0].clientX + pts[1].clientX) / 2, y: (pts[0].clientY + pts[1].clientY) / 2 };
+    };
+
+    // Capture phase: fires before Fabric's bubble-phase pointer listeners
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      active.set(e.pointerId, e);
+      if (active.size >= 2) {
+        // 2nd finger arrived — take over gesture, don't let Fabric see this event
+        e.stopPropagation();
+        if (!this._pinching) {
+          this._pinching = true;
+          this._lastPinchDist = getPinchDist();
+          this._lastPinchCenter = getPinchCenter();
+          this._panning = false;
+          this._panStart = null;
+          // Signal active tool to cancel any in-progress action started by finger 1
+          this.emit('cancel');
+        }
       }
-    }, { passive: true });
+    }, { capture: true });
 
-    el.addEventListener('touchmove', (e) => {
-      if (!this._pinching || e.touches.length < 2) return;
-      e.preventDefault();
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'touch' || !active.has(e.pointerId)) return;
+      if (!this._pinching) return;
+      active.set(e.pointerId, e);
+      e.stopPropagation();
+      e.preventDefault(); // prevent scroll/browser zoom
 
-      const dist = pinchDist(e.touches[0], e.touches[1]);
-      const center = pinchCenter(e.touches[0], e.touches[1]);
+      const dist = getPinchDist();
+      const center = getPinchCenter();
+      if (!center) return;
       const r = el.getBoundingClientRect();
 
       if (this._lastPinchCenter) {
         this.panBy(center.x - this._lastPinchCenter.x, center.y - this._lastPinchCenter.y);
       }
-      if (this._lastPinchDist > 0) {
+      if (this._lastPinchDist > 0 && dist > 0) {
         this.zoomAt(center.x - r.left, center.y - r.top, dist / this._lastPinchDist);
       }
-
       this._lastPinchDist = dist;
       this._lastPinchCenter = center;
-    }, { passive: false });
+    }, { capture: true, passive: false });
 
-    el.addEventListener('touchend', (e) => {
-      if (e.touches.length < 2) {
+    const endPointer = (e) => {
+      if (e.pointerType !== 'touch') return;
+      const wasPinching = this._pinching;
+      active.delete(e.pointerId);
+      if (active.size < 2) {
+        if (wasPinching) e.stopPropagation(); // prevent Fabric's mouseup after pinch
         this._pinching = false;
         this._lastPinchDist = 0;
         this._lastPinchCenter = null;
       }
-    }, { passive: true });
+    };
+
+    el.addEventListener('pointerup', endPointer, { capture: true });
+    el.addEventListener('pointercancel', endPointer, { capture: true });
   }
 
   /* ── Keyboard (space for pan) ──────────────────────── */

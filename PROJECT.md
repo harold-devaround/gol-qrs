@@ -126,3 +126,5 @@ npm run test:watch # vitest en mode watch
 | 2026-04-11| Sauvegarde/restauration de la vue (zoom + centre) : `getViewState()`/`setViewState()` dans fabric-canvas, persistance dans options, restauration au chargement initial et après load slot, 208 tests |
 | 2026-04-26| Coordonnées GPS lon/lat dans les propriétés des points et barre de statut, calibration Mercator depuis les graduations 15° de la carte, 242 tests |
 | 2026-04-26| Optimisation mobile : pinch-to-zoom + pan 2 doigts (fabric-canvas), panneau props slide-in avec backdrop + bouton toggle flottant, touch targets ≥ 40px, masquage texte action bar, barre de statut compacte, auto-ouverture props sur sélection, 242 tests |
+| 2026-04-26| Fix pinch-to-zoom mobile : remplacement touch events par pointer events en capture phase (intercepte avant Fabric.js), `touch-action: none` sur canvas, emit `cancel` pour annuler l'action en cours, 242 tests |
+| 2026-04-26| Barre d'outils portrait mobile : `@media (orientation: portrait)` — toolbar masquée, remplacée par bouton flottant bas-gauche + panneau horizontal slide-up, `closeTools()` on orientation change, 242 tests |

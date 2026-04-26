@@ -22,6 +22,10 @@ export function initMap(container) {
         <div class="map-toolbar" id="map-toolbar"></div>
         <div class="map-canvas-wrap" id="map-canvas-wrap"></div>
         <div class="map-props-backdrop" id="map-props-backdrop"></div>
+        <div class="map-tools-backdrop" id="map-tools-backdrop"></div>
+        <button class="btn-tools-toggle" id="btn-tools-toggle" title="Outils">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </button>
         <button class="btn-props-toggle" id="btn-props-toggle" title="Propriétés">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
@@ -69,6 +73,31 @@ export function initMap(container) {
     propsEl.classList.contains('open') ? closeProps() : openProps();
   });
   backdropEl.addEventListener('click', closeProps);
+
+  // ──── Portrait toolbar dropdown toggle ────────────────
+  const toolbarEl = container.querySelector('#map-toolbar');
+  const toolsBackdropEl = container.querySelector('#map-tools-backdrop');
+  const toolsToggleBtn = container.querySelector('#btn-tools-toggle');
+  const isPortrait = () => window.matchMedia('(orientation: portrait)').matches;
+
+  function openTools() {
+    toolbarEl.classList.add('open');
+    toolsBackdropEl.classList.add('open');
+    toolsToggleBtn.classList.add('active');
+  }
+  function closeTools() {
+    toolbarEl.classList.remove('open');
+    toolsBackdropEl.classList.remove('open');
+    toolsToggleBtn.classList.remove('active');
+  }
+  toolsToggleBtn.addEventListener('click', () => {
+    toolbarEl.classList.contains('open') ? closeTools() : openTools();
+  });
+  toolsBackdropEl.addEventListener('click', closeTools);
+  // Close toolbar panel when orientation switches to landscape
+  window.addEventListener('resize', () => {
+    if (!isPortrait()) closeTools();
+  });
 
   // Render shapes via canvas callback
   canvas.onRenderShapes = (ctx) => {
@@ -411,7 +440,7 @@ export function initMap(container) {
       </button>`).join('');
     tb.onclick = e => {
       const btn = e.target.closest('.tool-btn');
-      if (btn) tools.select(btn.dataset.tool);
+      if (btn) { tools.select(btn.dataset.tool); closeTools(); }
     };
   }
 
