@@ -43,7 +43,7 @@ function nextColor() { return PALETTE[_ci++ % PALETTE.length]; }
 /* ── Factories ────────────────────────────────────────── */
 
 export function createPoint(x, y, opts = {}) {
-  return { type: 'point', id: nextId(), x, y, label: opts.label ?? '', showLabel: opts.showLabel ?? true, color: opts.color ?? nextColor(), visible: true, selected: false };
+  return { type: 'point', id: nextId(), x, y, label: opts.label ?? '', showLabel: opts.showLabel ?? true, showGuides: opts.showGuides ?? false, color: opts.color ?? nextColor(), visible: true, selected: false };
 }
 
 export function createSegment(p1, p2, opts = {}) {
@@ -123,6 +123,24 @@ function drawLabel(ctx, text, sx, sy, color, offsetX = 0, offsetY = -12) {
 const RENDERERS = {
   point(ctx, s, vp, m) {
     const p = vp.toScreen(s.x, s.y);
+    // Guide lines (crosshair) through the point
+    if (s.showGuides) {
+      const rect = vp.worldRect();
+      const left   = vp.toScreen(rect.x, s.y);
+      const right  = vp.toScreen(rect.x + rect.w, s.y);
+      const top    = vp.toScreen(s.x, rect.y);
+      const bottom = vp.toScreen(s.x, rect.y + rect.h);
+      ctx.save();
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = s.color + 'cc';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(left.x, left.y);  ctx.lineTo(right.x, right.y);
+      ctx.moveTo(top.x,  top.y);   ctx.lineTo(bottom.x, bottom.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
     if (s.selected) selectionGlow(ctx, p.x, p.y, 5);
     dot(ctx, p.x, p.y, 5, s.color);
     if (s.label && s.showLabel) drawLabel(ctx, s.label, p.x, p.y, s.color, 10, -10);

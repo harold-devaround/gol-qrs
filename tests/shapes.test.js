@@ -29,9 +29,19 @@ describe('createPoint', () => {
     expect(p.showLabel).toBe(true);
   });
 
-  it('showLabel defaults to false when no label', () => {
+  it('showLabel is true even with no explicit label', () => {
     const p = createPoint(0, 0);
     expect(p.showLabel).toBe(true);
+  });
+
+  it('has showGuides defaulting to false', () => {
+    const p = createPoint(0, 0);
+    expect(p.showGuides).toBe(false);
+  });
+
+  it('accepts showGuides option', () => {
+    const p = createPoint(0, 0, { showGuides: true });
+    expect(p.showGuides).toBe(true);
   });
 
   it('assigns unique ids', () => {
