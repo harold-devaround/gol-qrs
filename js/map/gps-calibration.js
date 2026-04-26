@@ -6,8 +6,9 @@
  *
  * Fallback constants were derived by pixel-analysing the actual
  * 2019_WorldMap_MHF_1.2x1.6m.jpg (4449×3456 px, CMYK JPEG):
- *   – Longitude ticks: scan strip y=112–122, 23 marks at 15° intervals
- *   – Latitude  ticks: scan column x=138–146, 11 marks at 15° intervals
+ *   – Longitude ticks: scan strip y=65–85, 23 marks at 15° intervals
+ *   – Latitude  ticks: scan column x=55–100, 11 marks at 15° intervals
+ *   – 0°/0° is at the image centre: lon=0 at x≈2224, lat=0 at y≈1726
  */
 
 /**
@@ -18,10 +19,10 @@
  *  mercRadius– Mercator Earth radius in pixels (px per radian)
  */
 export const DEFAULT_CALIBRATION = {
-  mapLeft:    152,
-  mapWidth:   4139,
+  mapLeft:    148,
+  mapWidth:   4149,
   equatorY:   1726,
-  mercRadius: 659,
+  mercRadius: 657,
 };
 
 // ---------------------------------------------------------------------------
@@ -186,8 +187,8 @@ export function detectGraduations(img) {
   }
 
   // ── Detect longitude ticks ───────────────────────────────────────────────
-  // Scan horizontal strip y=112–122 (top border line region)
-  const LON_Y0 = 112, LON_H = 11;
+  // Scan horizontal strip y=65–85: tick marks have brightness ~144 on a 255 background
+  const LON_Y0 = 65, LON_H = 20;
   tmpCanvas.width = W;
   tmpCanvas.height = LON_H;
   ctx.clearRect(0, 0, W, LON_H);
@@ -198,7 +199,7 @@ export function detectGraduations(img) {
   // Adaptive threshold: median brightness of the strip minus offset
   const sortedBr = [...colBr].sort((a, b) => a - b);
   const medBr = sortedBr[Math.floor(sortedBr.length / 2)];
-  const lonThreshold = Math.min(medBr - 15, 100);
+  const lonThreshold = Math.min(medBr - 15, 200);
 
   // Exclude outer frame (first/last ~50 px are always dark border lines)
   for (let x = 0; x < 55; x++) colBr[x] = 255;
@@ -207,8 +208,8 @@ export function detectGraduations(img) {
   const lonTicksX = findTickCenters(colBr, lonThreshold, 50);
 
   // ── Detect latitude ticks ────────────────────────────────────────────────
-  // Scan vertical strip x=138–146 (left margin just before border line)
-  const LAT_X0 = 138, LAT_W = 9;
+  // Scan vertical strip x=55–100 (left margin where tick marks are located)
+  const LAT_X0 = 55, LAT_W = 45;
   tmpCanvas.width = LAT_W;
   tmpCanvas.height = H;
   ctx.clearRect(0, 0, LAT_W, H);

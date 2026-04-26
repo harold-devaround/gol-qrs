@@ -10,10 +10,10 @@ import {
 
 describe('DEFAULT_CALIBRATION', () => {
   it('has expected calibration constants', () => {
-    expect(DEFAULT_CALIBRATION.mapLeft).toBe(152);
-    expect(DEFAULT_CALIBRATION.mapWidth).toBe(4139);
+    expect(DEFAULT_CALIBRATION.mapLeft).toBe(148);
+    expect(DEFAULT_CALIBRATION.mapWidth).toBe(4149);
     expect(DEFAULT_CALIBRATION.equatorY).toBe(1726);
-    expect(DEFAULT_CALIBRATION.mercRadius).toBe(659);
+    expect(DEFAULT_CALIBRATION.mercRadius).toBe(657);
   });
 });
 
@@ -121,12 +121,12 @@ describe('computeCalibration', () => {
 
   it('derives equatorY and mercRadius from 11 lat ticks', () => {
     // Use the actual detected positions from the image analysis
-    const latTicks = [387, 857, 1145, 1364, 1551, 1726, 1900, 2087, 2306, 2594, 3064];
+    const latTicks = [391, 860, 1147, 1365, 1552, 1726, 1900, 2086, 2305, 2592, 3059];
     const cal = computeCalibration(null, latTicks);
     expect(cal.equatorY).toBe(1726);
     expect(cal.mercRadius).toBeGreaterThan(600);
     expect(cal.mercRadius).toBeLessThan(750);
-    expect(cal.mercRadius).toBeCloseTo(659, -1); // within 10
+    expect(cal.mercRadius).toBeCloseTo(657, -1); // within 10
   });
 
   it('falls back to defaults when no ticks provided', () => {
@@ -138,13 +138,13 @@ describe('computeCalibration', () => {
   });
 
   it('uses real detected positions and produces accurate GPS', () => {
-    const lonTicks = [324, 497, 669, 842, 1014, 1187, 1359, 1531, 1704, 1876,
-      2049, 2221, 2394, 2566, 2739, 2911, 3083, 3256, 3428, 3601, 3773, 3946, 4118];
-    const latTicks = [387, 857, 1145, 1364, 1551, 1726, 1900, 2087, 2306, 2594, 3064];
+    const lonTicks = [321, 493, 666, 839, 1012, 1184, 1357, 1530, 1703, 1876,
+      2049, 2221, 2395, 2568, 2740, 2913, 3086, 3259, 3432, 3605, 3778, 3951, 4124];
+    const latTicks = [391, 860, 1147, 1365, 1552, 1726, 1900, 2086, 2305, 2592, 3059];
     const cal = computeCalibration(lonTicks, latTicks);
 
-    // -165° tick at x=324
-    const lon165 = (324 - cal.mapLeft) / cal.mapWidth * 360 - 180;
+    // -165° tick at x=321
+    const lon165 = (321 - cal.mapLeft) / cal.mapWidth * 360 - 180;
     expect(lon165).toBeCloseTo(-165, 0.5);
 
     // Equator at y=1726
@@ -152,8 +152,8 @@ describe('computeCalibration', () => {
     const lat0 = (2 * Math.atan(Math.exp(yMerc0)) - Math.PI / 2) * 180 / Math.PI;
     expect(lat0).toBeCloseTo(0, 1);
 
-    // 75°N at y=387
-    const yMerc75 = (cal.equatorY - 387) / cal.mercRadius;
+    // 75°N at y=391
+    const yMerc75 = (cal.equatorY - 391) / cal.mercRadius;
     const lat75 = (2 * Math.atan(Math.exp(yMerc75)) - Math.PI / 2) * 180 / Math.PI;
     expect(lat75).toBeCloseTo(75, 0.5);
   });
