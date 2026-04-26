@@ -322,6 +322,7 @@ body {
   min-width: 0;
   background: #12141b;
   overflow: hidden;
+  touch-action: none; /* disable browser native pinch-to-zoom/scroll on canvas */
 }
 
 .map-canvas {
@@ -329,6 +330,7 @@ body {
   width: 100%;
   height: 100%;
   outline: none;
+  touch-action: none;
 }
 
 .map-canvas-wrap.dragover {
@@ -878,6 +880,16 @@ body {
   display: none;
 }
 
+/* Toggle button for tools panel (portrait mobile only) */
+.btn-tools-toggle {
+  display: none;
+}
+
+/* Backdrop for tools panel (portrait mobile only) */
+.map-tools-backdrop {
+  display: none;
+}
+
 /* ── 14. Responsive ────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -962,6 +974,78 @@ body {
   .qr-header { padding: 1rem 0.5rem 0.8rem; }
   .qa-card { padding: 0.8rem; }
   .qa-themes { margin-left: 0; margin-top: 0.25rem; }
+}
+
+/* ── 14b. Portrait mobile — toolbar as bottom dropdown ─────── */
+
+@media (orientation: portrait) and (max-width: 768px) {
+  /* Toolbar leaves the flex flow (absolute) so canvas gets full width */
+  .map-toolbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    padding: 4px 6px;
+    gap: 4px;
+    z-index: 20;
+    /* Hidden below viewport by default */
+    transform: translateY(105%);
+    transition: transform 0.22s ease;
+  }
+  .map-toolbar.open { transform: translateY(0); }
+
+  /* Larger touch targets in portrait */
+  .map-toolbar .tool-btn { width: 48px; height: 48px; flex-shrink: 0; }
+  .map-toolbar .tool-btn svg { width: 20px; height: 20px; }
+  .map-toolbar .tool-btn::after { display: none; }
+
+  /* Tools backdrop */
+  .map-tools-backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 18;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.22s ease;
+  }
+  .map-tools-backdrop.open { pointer-events: auto; opacity: 1; }
+
+  /* Floating tools toggle button — bottom left */
+  .btn-tools-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: 6px;
+    bottom: 34px;
+    width: 44px; height: 44px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    z-index: 22;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    color: var(--text-muted);
+    transition: all var(--transition);
+  }
+  .btn-tools-toggle:hover { background: var(--surface-2); color: var(--text); }
+  .btn-tools-toggle.active {
+    background: var(--accent-dark);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .btn-tools-toggle svg { width: 20px; height: 20px; }
+
+  /* Raise props toggle so it stays above the tools backdrop */
+  .btn-props-toggle { z-index: 22; }
 }
 
 /* ── 15. Scrollbar ─────────────────────────────────────────── */
