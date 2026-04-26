@@ -354,7 +354,7 @@ export function shapeInfo(shape, measurement) {
   const m = measurement;
   switch (shape.type) {
     case 'point':
-      return `(${m.formatCoord(shape.x, shape.y)})`;
+      return `(${m.formatCoord(shape.x, shape.y)})<br>${m.formatGPS(shape.x, shape.y)}`;
     case 'segment':
     case 'median':
       return `Longueur: ${m.format(distance(shape.p1, shape.p2))}`;

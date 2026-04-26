@@ -149,4 +149,97 @@ describe('Measurement', () => {
       expect(m.formatArea(areaPxSq)).toBe('1.00 cm²');
     });
   });
+
+  describe('toGPS', () => {
+    it('returns lon=0 at the Greenwich meridian center pixel', () => {
+      const m = new Measurement();
+      // x = MAP_LEFT + MAP_WIDTH/2 = 148 + 4150/2 = 2223
+      const { lon } = m.toGPS(2223, 1728);
+      expect(lon).toBeCloseTo(0, 1);
+    });
+
+    it('returns lat=0 at the equator center pixel', () => {
+      const m = new Measurement();
+      // equator is at y=1728 (image center)
+      const { lat } = m.toGPS(2223, 1728);
+      expect(lat).toBeCloseTo(0, 1);
+    });
+
+    it('returns lat≈75°N at the 75°N graduation mark (y≈391)', () => {
+      const m = new Measurement();
+      const { lat } = m.toGPS(2223, 391);
+      expect(lat).toBeCloseTo(75, 0.5);
+    });
+
+    it('returns lat≈60°N at the 60°N graduation mark (y≈860)', () => {
+      const m = new Measurement();
+      const { lat } = m.toGPS(2223, 860);
+      expect(lat).toBeCloseTo(60, 0.5);
+    });
+
+    it('returns lat≈45°N at the 45°N graduation mark (y≈1147)', () => {
+      const m = new Measurement();
+      const { lat } = m.toGPS(2223, 1147);
+      expect(lat).toBeCloseTo(45, 0.5);
+    });
+
+    it('returns lat≈75°S at the 75°S graduation mark (y≈3059)', () => {
+      const m = new Measurement();
+      const { lat } = m.toGPS(2223, 3059);
+      expect(Math.abs(lat + 75)).toBeLessThan(0.5);
+    });
+
+    it('returns lon≈-165° at the first longitude graduation mark (x≈321)', () => {
+      const m = new Measurement();
+      const { lon } = m.toGPS(321, 1728);
+      expect(lon).toBeCloseTo(-165, 1);
+    });
+
+    it('returns lon≈165° at the last longitude graduation mark (x≈4125)', () => {
+      const m = new Measurement();
+      const { lon } = m.toGPS(4125, 1728);
+      expect(lon).toBeCloseTo(165, 1);
+    });
+
+    it('returns lon=-180° at left edge of map', () => {
+      const m = new Measurement();
+      const { lon } = m.toGPS(148, 1728);
+      expect(lon).toBeCloseTo(-180, 1);
+    });
+
+    it('returns lon=+180° at right edge of map', () => {
+      const m = new Measurement();
+      const { lon } = m.toGPS(4298, 1728);
+      expect(lon).toBeCloseTo(180, 1);
+    });
+  });
+
+  describe('formatGPS', () => {
+    it('formats GPS as signed decimal degrees with lon and lat labels', () => {
+      const m = new Measurement();
+      // At equator + Greenwich: lon≈0, lat≈0
+      const result = m.formatGPS(2223, 1728);
+      expect(result).toMatch(/lon: [-\d.]+°\s+lat: [-\d.]+°/);
+    });
+
+    it('shows negative lon for western longitudes', () => {
+      const m = new Measurement();
+      // x=148 → lon=-180°
+      const result = m.formatGPS(148, 1728);
+      expect(result).toContain('lon: -180.00°');
+    });
+
+    it('shows negative lat for southern latitudes', () => {
+      const m = new Measurement();
+      // y=3059 → lat≈-75°S
+      const result = m.formatGPS(2223, 3059);
+      expect(result).toMatch(/lat: -7[0-9]\.[0-9]+°/);
+    });
+
+    it('rounds to 2 decimal places', () => {
+      const m = new Measurement();
+      const result = m.formatGPS(2223, 1728);
+      expect(result).toMatch(/lon: -?\d+\.\d{2}°\s+lat: -?\d+\.\d{2}°/);
+    });
+  });
 });

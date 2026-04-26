@@ -552,7 +552,10 @@ export function initMap(container) {
   canvas.on('mousemove', ({ world }) => {
     const sb = container.querySelector('#map-statusbar');
     if (sb) {
+      const gps = measurement.formatGPS(world.x, world.y);
       sb.innerHTML = `<span>${measurement.formatCoord(world.x, world.y)}</span>
+        <span class="sb-sep">|</span>
+        <span>${gps}</span>
         <span class="sb-sep">|</span>
         <span>Zoom: ${Math.round(canvas.zoom * 100)}%</span>
         <span class="sb-sep">|</span>
