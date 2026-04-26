@@ -53,9 +53,15 @@ export class MapCanvas extends EventEmitter {
     this._panStart = null;
     this._spaceDown = false;
 
+    // Pinch-to-zoom state (mobile)
+    this._pinching = false;
+    this._lastPinchDist = 0;
+    this._lastPinchCenter = null;
+
     this._setupResize();
     this._setupEvents();
     this._setupKeyboard();
+    this._setupTouch();
     this._setupOverlay();
   }
 
@@ -247,6 +253,7 @@ export class MapCanvas extends EventEmitter {
   _setupEvents() {
     // Mouse down
     this.fc.on('mouse:down', (opt) => {
+      if (this._pinching) return;
       const e = opt.e;
       const { sx, sy } = this._canvasXY(e);
 
@@ -263,6 +270,7 @@ export class MapCanvas extends EventEmitter {
 
     // Mouse move
     this.fc.on('mouse:move', (opt) => {
+      if (this._pinching) return;
       const e = opt.e;
       const { sx, sy } = this._canvasXY(e);
 
@@ -278,6 +286,7 @@ export class MapCanvas extends EventEmitter {
 
     // Mouse up
     this.fc.on('mouse:up', (opt) => {
+      if (this._pinching) return;
       if (this._panning) {
         this._panning = false;
         this._panStart = null;
@@ -297,6 +306,57 @@ export class MapCanvas extends EventEmitter {
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
       this.zoomAt(sx, sy, factor);
     });
+  }
+
+  /* ── Touch gestures (pinch-to-zoom + 2-finger pan) ─── */
+
+  _setupTouch() {
+    const el = this.el;
+    const pinchDist = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    const pinchCenter = (t0, t1) => ({
+      x: (t0.clientX + t1.clientX) / 2,
+      y: (t0.clientY + t1.clientY) / 2,
+    });
+
+    el.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        this._pinching = true;
+        this._lastPinchDist = pinchDist(e.touches[0], e.touches[1]);
+        this._lastPinchCenter = pinchCenter(e.touches[0], e.touches[1]);
+        // Cancel any active single-touch tool action
+        this._panning = false;
+        this._panStart = null;
+      } else {
+        this._pinching = false;
+      }
+    }, { passive: true });
+
+    el.addEventListener('touchmove', (e) => {
+      if (!this._pinching || e.touches.length < 2) return;
+      e.preventDefault();
+
+      const dist = pinchDist(e.touches[0], e.touches[1]);
+      const center = pinchCenter(e.touches[0], e.touches[1]);
+      const r = el.getBoundingClientRect();
+
+      if (this._lastPinchCenter) {
+        this.panBy(center.x - this._lastPinchCenter.x, center.y - this._lastPinchCenter.y);
+      }
+      if (this._lastPinchDist > 0) {
+        this.zoomAt(center.x - r.left, center.y - r.top, dist / this._lastPinchDist);
+      }
+
+      this._lastPinchDist = dist;
+      this._lastPinchCenter = center;
+    }, { passive: false });
+
+    el.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        this._pinching = false;
+        this._lastPinchDist = 0;
+        this._lastPinchCenter = null;
+      }
+    }, { passive: true });
   }
 
   /* ── Keyboard (space for pan) ──────────────────────── */
