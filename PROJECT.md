@@ -19,7 +19,8 @@ js/
     fabric-canvas.js        ← Wrapper Fabric.js v7 : zoom/pan, rendu overlay, snap
     store.js                ← ShapeStore : CRUD, sélection, visibilité, snapshot/restore
     history.js              ← Undo/redo par snapshots (max 80)
-    measurement.js          ← Conversion px ↔ cm, calibration, formatage
+    measurement.js          ← Conversion px ↔ cm, calibration, formatage, GPS (Mercator)
+    gps-calibration.js      ← Détection des graduations en bordures, calibration GPS runtime
     save-manager.js         ← Persistance localStorage (slots nommés)
     shapes.js               ← Factories, renderers, hit-test, moveShape, shapeInfo
     tools/
@@ -42,14 +43,15 @@ tests/
   geometry.test.js           ← 72 tests
   store.test.js              ← 16 tests
   events.test.js             ← 9 tests
-  shapes.test.js             ← 57 tests
-  measurement.test.js        ← 33 tests
+  shapes.test.js             ← 59 tests
+  measurement.test.js        ← 44 tests
   history.test.js            ← 12 tests
   save-manager.test.js       ← 15 tests
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
-  fabric-canvas-touch.test.js← 24 tests
-  TOTAL                      ← 266 tests
+  fabric-canvas-touch.test.js← 24 tests (jsdom, hors vitest run standard)
+  gps-calibration.test.js    ← 30 tests (nouveau)
+  TOTAL                      ← 262 tests (+ 24 jsdom)
 ```
 
 ## Stack technique
@@ -75,7 +77,9 @@ tests/
 - **Zoom/Pan** : molette, boutons +/−, fit (F), space+drag pour pan
 - **Sauvegarde/chargement** : slots nommés en localStorage avec métadonnées + options (unité, ratio, snap, vue)
 - **Barre de statut** : coordonnées temps réel, GPS (lon/lat), zoom, outil actif
-- **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut, calculées à partir des graduations Mercator (±80° lat, ±180° lon)
+- **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut. Calibration auto par détection des graduations 15° en bordures de la carte (mapLeft=152, mapWidth=4139, equatorY=1726, mercRadius=659). Module `gps-calibration.js` : détection runtime + fallback précis.
+- **Lignes guide sur point** : option `showGuides` par point (checkbox dans le panneau propriétés) → croix horizontale + verticale en pointillés colorés à travers le point
+- **Grille GPS** : bouton "Grille" dans la barre d'action pour afficher/masquer la grille des graduations détectées avec valeurs lon/lat
 - **Constructions** : médianes et médiatrices auto pour les triangles
 
 ### Galeries (CP & Tuiles)
@@ -130,3 +134,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-26| Fix pinch-to-zoom mobile : remplacement touch events par pointer events en capture phase (intercepte avant Fabric.js), `touch-action: none` sur canvas, emit `cancel` pour annuler l'action en cours, 242 tests |
 | 2026-04-26| Barre d'outils portrait mobile : `@media (orientation: portrait)` — toolbar masquée, remplacée par bouton flottant bas-gauche + panneau horizontal slide-up, `closeTools()` on orientation change, 242 tests |
 | 2026-04-26| Fix pinch zoom : `this.el` → `upperCanvasEl` (bonne cible), `stopImmediatePropagation`, `touch-action:none` sur upper canvas, mise à jour `active` map sur tout `pointermove`, 266 tests |
+| 2026-04-26| GPS calibration par détection des graduations en bordures : `gps-calibration.js` (détection runtime + fallback précis), constantes corrigées (mapLeft=152, mapWidth=4139, equatorY=1726, mercRadius=659), lignes guide sur point (showGuides), grille GPS overlay togglable (bouton Grille), 262 tests |

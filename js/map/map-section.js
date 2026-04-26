@@ -5,6 +5,7 @@ import { Measurement } from './measurement.js';
 import { ToolManager } from './tools/manager.js';
 import { renderShape, hitTestShape, shapeInfo, TYPE_LABELS, syncNextId, generateConcentrics } from './shapes.js';
 import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.js';
+import { detectGraduations, buildGradGrid } from './gps-calibration.js';
 
 /** WorldMap MHF — auto-loaded on init. Physical: 160cm wide × 120cm tall. */
 const WORLDMAP_SRC = '2019_WorldMap_MHF_1.2x1.6m.jpg';
@@ -47,6 +48,11 @@ export function initMap(container) {
   // Calibration ratios (computed on image load)
   let calRatios = null; // { height, width, avg }
   let calMode = 'height'; // 'height' | 'width' | 'avg'
+
+  // Graduation grid state
+  let showGradGrid = false;
+  let gradGridData  = null; // { lonLines, latLines } from buildGradGrid
+  let detectedGrads = null; // raw detection output from detectGraduations
 
   // Per-type label visibility (all visible by default)
   const labelVisibility = {
@@ -103,6 +109,10 @@ export function initMap(container) {
 
   // Render shapes via canvas callback
   canvas.onRenderShapes = (ctx) => {
+    // Graduation grid overlay
+    if (showGradGrid && gradGridData) {
+      renderGradGrid(ctx, gradGridData);
+    }
     for (const s of store.getVisible()) {
       renderShape(ctx, s, canvas, measurement, { labelVisibility });
     }
@@ -172,6 +182,10 @@ export function initMap(container) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
           <span>Snap</span>
         </button>
+        <button class="abar-btn abar-toggle ${showGradGrid ? 'active' : ''}" id="btn-grad-grid" title="Afficher la grille des graduations GPS">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          <span>Grille</span>
+        </button>
         <div class="abar-dropdown" id="label-vis-dropdown">
           <button class="abar-btn abar-toggle" id="btn-label-vis" title="Visibilité des labels par type">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -240,6 +254,14 @@ export function initMap(container) {
     bar.querySelector('#btn-zout').onclick = () => canvas.zoomAt(canvas.el.clientWidth / 2, canvas.el.clientHeight / 2, 1 / 1.3);
     bar.querySelector('#btn-fit').onclick = () => canvas.fitToView();
     bar.querySelector('#btn-snap').onclick = () => { canvas.snapEnabled = !canvas.snapEnabled; updateActionBar(); };
+    bar.querySelector('#btn-grad-grid').onclick = () => {
+      showGradGrid = !showGradGrid;
+      if (showGradGrid && !gradGridData) {
+        gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads);
+      }
+      canvas.requestRender();
+      updateActionBar();
+    };
     bar.querySelector('#unit-switch').onclick = () => { measurement.toggleMode(); };
     bar.querySelector('#btn-clear').onclick = () => {
       if (store.getAll().length === 0) return;
@@ -432,6 +454,53 @@ export function initMap(container) {
     if (el) el.textContent = Math.round(canvas.zoom * 100) + '%';
   }
 
+  // ──── Graduation grid rendering ───────────────────────
+
+  function renderGradGrid(ctx, grid) {
+    if (!grid) return;
+    const { lonLines, latLines } = grid;
+    ctx.save();
+    ctx.setLineDash([4, 6]);
+    ctx.lineWidth = 1;
+
+    // Longitude lines (vertical)
+    ctx.strokeStyle = 'rgba(255,200,0,0.55)';
+    ctx.fillStyle   = 'rgba(255,200,0,0.9)';
+    ctx.font        = '9px sans-serif';
+    ctx.textAlign   = 'center';
+    const vRect = canvas.worldRect();
+    for (const { x, lon } of lonLines) {
+      const sx = canvas.toScreen(x, vRect.y);
+      const ex = canvas.toScreen(x, vRect.y + vRect.h);
+      ctx.beginPath();
+      ctx.moveTo(sx.x, sx.y);
+      ctx.lineTo(ex.x, ex.y);
+      ctx.stroke();
+      // Label near top
+      const ly = Math.max(12, sx.y + 4);
+      ctx.fillText(lon + '°', sx.x, ly);
+    }
+
+    // Latitude lines (horizontal)
+    ctx.strokeStyle = 'rgba(0,200,255,0.55)';
+    ctx.fillStyle   = 'rgba(0,200,255,0.9)';
+    ctx.textAlign   = 'left';
+    for (const { y, lat } of latLines) {
+      const sy = canvas.toScreen(vRect.x, y);
+      const ey = canvas.toScreen(vRect.x + vRect.w, y);
+      ctx.beginPath();
+      ctx.moveTo(sy.x, sy.y);
+      ctx.lineTo(ey.x, ey.y);
+      ctx.stroke();
+      // Label near left
+      const lx = Math.max(4, sy.x + 4);
+      ctx.fillText(lat + '°', lx, sy.y - 2);
+    }
+
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
   // ──── Toolbar (left) ──────────────────────────────────
 
   function updateToolbar() {
@@ -470,6 +539,9 @@ export function initMap(container) {
       if (s.label !== undefined) {
         html += `<div class="props-row"><label>Label</label><input type="text" value="${s.label}" data-prop="label" class="props-input"></div>`;
         html += `<div class="props-row"><label>Afficher</label><input type="checkbox" ${s.showLabel ? 'checked' : ''} id="chk-show-label"></div>`;
+      }
+      if (s.type === 'point') {
+        html += `<div class="props-row"><label>Lignes guide</label><input type="checkbox" ${s.showGuides ? 'checked' : ''} id="chk-show-guides"></div>`;
       }
       html += `<div class="props-actions">
         <button class="btn btn-danger btn-sm" id="btn-delete-shape">Supprimer</button>
@@ -554,6 +626,16 @@ export function initMap(container) {
         if (!s) return;
         history.save();
         store.update(s.id, { showLabel: showLabelChk.checked });
+      };
+    }
+
+    const showGuidesChk = panel.querySelector('#chk-show-guides');
+    if (showGuidesChk) {
+      showGuidesChk.onchange = () => {
+        const s = sel[0];
+        if (!s) return;
+        history.save();
+        store.update(s.id, { showGuides: showGuidesChk.checked });
       };
     }
 
@@ -642,6 +724,17 @@ export function initMap(container) {
     };
     calRatios.avg = (calRatios.height + calRatios.width) / 2;
     applyCalRatio();
+
+    // Detect graduation tick marks from image borders, update GPS calibration
+    try {
+      detectedGrads = detectGraduations(img);
+      measurement.setGPSCalibration(detectedGrads);
+      gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads);
+    } catch (_) {
+      // Detection failed — leave default calibration in place
+      gradGridData = buildGradGrid(measurement.gpsCalibration, null);
+    }
+
     // Restore saved view state or keep fitToView default
     const opts = loadOptions();
     if (opts?.view) canvas.setViewState(opts.view);

@@ -1,24 +1,5 @@
 import { EventEmitter } from '../utils/events.js';
-
-/**
- * GPS calibration constants for the WorldMap image (4449×3456 px).
- * Derived from the 15° graduation tick marks on the map borders.
- * The map uses a Mercator cylindrical projection covering ±80° latitude.
- *
- * mapLeft/mapWidth set the longitude linear scale (-180° at x=148, 360° over 4150 px).
- * mapTop is the first content row (~80°N). mercRadius is the Mercator Earth radius
- * in pixels (map_width / 2π). mercTop is the Mercator y-coordinate at the top row,
- * computed as (equator_y − mapTop) / mercRadius where equator_y = imageHeight / 2 = 1728.
- */
-const _mercRadius = 4150 / (2 * Math.PI); // ~660.5 px
-const _equatorY   = 1728;                 // image center y (imageHeight / 2)
-const WORLDMAP_GPS = {
-  mapLeft:    148,                                    // x-pixel where longitude = −180°
-  mapWidth:   4150,                                   // pixel width spanning 360° of longitude
-  mapTop:     105,                                    // y-pixel where map content starts (~80°N)
-  mercRadius: _mercRadius,
-  mercTop:    (_equatorY - 105) / _mercRadius,        // y_merc at map top ≈ 2.457
-};
+import { DEFAULT_CALIBRATION } from './gps-calibration.js';
 
 /**
  * Manages pixel ↔ cm conversion and display mode.
@@ -28,6 +9,17 @@ export class Measurement extends EventEmitter {
     super();
     this.pixelsPerCm = null;
     this.mode = 'px'; // 'px' | 'cm'
+    /** GPS calibration — updated by detectGraduations() after image load */
+    this.gpsCalibration = { ...DEFAULT_CALIBRATION };
+  }
+
+  /**
+   * Update GPS calibration from detected graduation data.
+   * @param {{ mapLeft, mapWidth, equatorY, mercRadius }} cal
+   */
+  setGPSCalibration(cal) {
+    this.gpsCalibration = { ...DEFAULT_CALIBRATION, ...cal };
+    this.emit('change');
   }
 
   get calibrated() { return this.pixelsPerCm !== null; }
@@ -93,14 +85,14 @@ export class Measurement extends EventEmitter {
 
   /**
    * Convert image-pixel coordinates to GPS (lon, lat) in decimal degrees.
-   * Uses the WorldMap Mercator calibration derived from its 15° border graduations.
+   * Uses the WorldMap Mercator calibration derived from detected border graduations.
    * @returns {{ lon: number, lat: number }}
    */
   toGPS(x, y) {
-    const { mapLeft, mapWidth, mapTop, mercRadius, mercTop } = WORLDMAP_GPS;
-    const lon = (x - mapLeft) / mapWidth * 360 - 180;
-    const yMerc = mercTop - (y - mapTop) / mercRadius;
-    const lat = (2 * Math.atan(Math.exp(yMerc)) - Math.PI / 2) * 180 / Math.PI;
+    const { mapLeft, mapWidth, equatorY, mercRadius } = this.gpsCalibration;
+    const lon   = (x - mapLeft) / mapWidth * 360 - 180;
+    const yMerc = (equatorY - y) / mercRadius;
+    const lat   = (2 * Math.atan(Math.exp(yMerc)) - Math.PI / 2) * 180 / Math.PI;
     return { lon, lat };
   }
 
