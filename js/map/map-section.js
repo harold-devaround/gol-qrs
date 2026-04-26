@@ -18,9 +18,13 @@ export function initMap(container) {
   container.innerHTML = `
     <div class="map-layout">
       <div class="map-actionbar" id="map-actionbar"></div>
-      <div class="map-main">
+      <div class="map-main" id="map-main">
         <div class="map-toolbar" id="map-toolbar"></div>
         <div class="map-canvas-wrap" id="map-canvas-wrap"></div>
+        <div class="map-props-backdrop" id="map-props-backdrop"></div>
+        <button class="btn-props-toggle" id="btn-props-toggle" title="Propriétés">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <div class="map-props" id="map-props"></div>
       </div>
       <div class="map-statusbar" id="map-statusbar"></div>
@@ -45,6 +49,26 @@ export function initMap(container) {
     point: true, segment: true, line: true, circle: true,
     triangle: true, angle: true, median: true, bisector: true,
   };
+
+  // ──── Mobile props panel toggle ───────────────────────
+  const propsEl = container.querySelector('#map-props');
+  const backdropEl = container.querySelector('#map-props-backdrop');
+  const propsToggleBtn = container.querySelector('#btn-props-toggle');
+
+  function openProps() {
+    propsEl.classList.add('open');
+    backdropEl.classList.add('open');
+    propsToggleBtn.classList.add('active');
+  }
+  function closeProps() {
+    propsEl.classList.remove('open');
+    backdropEl.classList.remove('open');
+    propsToggleBtn.classList.remove('active');
+  }
+  propsToggleBtn.addEventListener('click', () => {
+    propsEl.classList.contains('open') ? closeProps() : openProps();
+  });
+  backdropEl.addEventListener('click', closeProps);
 
   // Render shapes via canvas callback
   canvas.onRenderShapes = (ctx) => {
@@ -73,7 +97,14 @@ export function initMap(container) {
       updateProps();
     }
   });
-  store.on('selection', () => { canvas.requestRender(); updateProps(); });
+  store.on('selection', () => {
+    canvas.requestRender();
+    updateProps();
+    // On mobile, auto-open props panel when a shape is selected
+    if (window.matchMedia('(max-width: 640px)').matches && store.getSelected().length > 0) {
+      openProps();
+    }
+  });
   history.on('change', () => updateActionBar());
   measurement.on('change', () => { canvas.requestRender(); updateActionBar(); updateProps(); });
   tools.on('change', () => updateToolbar());
