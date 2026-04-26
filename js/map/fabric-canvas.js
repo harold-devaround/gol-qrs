@@ -33,7 +33,7 @@ export class MapCanvas extends EventEmitter {
     });
 
     // Alias for backward compat (tools reference canvas.el for cursor, focus, size)
-    this.el = this.fc.upper?.el ?? this.fc.lowerCanvasEl ?? canvasEl;
+    this.el = this.fc.upperCanvasEl ?? this.fc.lowerCanvasEl ?? canvasEl;
 
     // State
     this.mapImage = null;
@@ -310,12 +310,17 @@ export class MapCanvas extends EventEmitter {
 
   /* ── Touch gestures (pinch-to-zoom + 2-finger pan) ─── */
   /*
-   * Uses pointer events in capture phase so we intercept BEFORE Fabric.js
-   * bubble-phase listeners. stopPropagation() on the 2nd+ touch prevents
-   * Fabric from seeing multi-touch as drawing actions.
+   * Listeners are attached to the upper canvas (same element as Fabric's listeners).
+   * capture:true + stopImmediatePropagation() lets us intercept before Fabric's
+   * bubble-phase handlers on the same element, preventing multi-touch from
+   * triggering drawing actions.
    */
   _setupTouch() {
-    const el = this.el;
+    const el = this.el; // upper canvas — where Fabric registers its pointer listeners
+    // Upper canvas is created by Fabric without touch-action:none; set it explicitly
+    // so the browser forwards pinch/scroll to JS instead of handling natively.
+    el.style.touchAction = 'none';
+
     // Track all active touch pointers by ID
     const active = new Map(); // pointerId → PointerEvent
     // Stable ordered pair of IDs for the current pinch gesture
@@ -339,8 +344,8 @@ export class MapCanvas extends EventEmitter {
       if (e.pointerType !== 'touch') return;
       active.set(e.pointerId, e);
       if (active.size >= 2) {
-        // 2nd finger arrived — take over gesture, don't let Fabric see this event
-        e.stopPropagation();
+        // 2nd finger arrived — intercept completely; Fabric must not see this event
+        e.stopImmediatePropagation();
         if (!this._pinching) {
           // Lock in the stable pair of pointer IDs for this pinch session
           pinchIds = [...active.keys()].slice(0, 2);
@@ -357,9 +362,11 @@ export class MapCanvas extends EventEmitter {
 
     el.addEventListener('pointermove', (e) => {
       if (e.pointerType !== 'touch' || !active.has(e.pointerId)) return;
-      if (!this._pinching) return;
+      // Always update position so getPinchCenter/getPinchDist are accurate
+      // even when the 2nd finger has not yet arrived.
       active.set(e.pointerId, e);
-      e.stopPropagation();
+      if (!this._pinching) return;
+      e.stopImmediatePropagation();
       e.preventDefault(); // prevent scroll/browser zoom
 
       const dist = getPinchDist();
@@ -382,7 +389,7 @@ export class MapCanvas extends EventEmitter {
       const wasPinching = this._pinching;
       active.delete(e.pointerId);
       if (active.size < 2) {
-        if (wasPinching) e.stopPropagation(); // prevent Fabric's mouseup after pinch
+        if (wasPinching) e.stopImmediatePropagation(); // prevent Fabric's mouseup after pinch
         this._pinching = false;
         this._lastPinchDist = 0;
         this._lastPinchCenter = null;
