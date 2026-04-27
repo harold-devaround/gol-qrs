@@ -79,7 +79,7 @@ tests/
 - **Barre de statut** : coordonnées temps réel, GPS (lon/lat), zoom, outil actif
 - **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut. Calibration auto par détection des graduations 15° en bordures de la carte (mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657). Module `gps-calibration.js` : détection runtime + fallback précis. Le 0°/0° est au centre de l'image (lon=0 à x≈2222, lat=0 à y=1726).
 - **Lignes guide sur point** : option `showGuides` par point (checkbox dans le panneau propriétés) → croix horizontale + verticale en pointillés colorés. Affiche `lat: XX.XX°` au bord gauche du viewport et `lon: XX.XX°` au bord haut, indiquant les coordonnées GPS du point sur les graduations de la carte.
-- **Grille GPS** : dropdown "Grille" dans la barre d'action — 3 modes : Aucune / Principales (15°) / Toutes (5° avec lignes intermédiaires). Les lignes intermédiaires sont calculées depuis la calibration, plus fines et translucides.
+- **Grille GPS** : dropdown "Grille" dans la barre d'action — 3 modes : Aucune / Principales (15°) / Toutes (1° avec lignes intermédiaires). Les lignes intermédiaires sont calculées depuis les graduations détectées (interpolation linéaire pour la longitude, interpolation Mercator pour la latitude), plus fines et translucides.
 - **Constructions** : médianes et médiatrices auto pour les triangles
 
 ### Galeries (CP & Tuiles)
@@ -138,4 +138,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-26| Fix détection graduations : bandes de scan corrigées (lon: y=65–85, lat: x=55–100), seuil brightness 200 (ticks CMYK ≈144), constantes DEFAULT_CALIBRATION mises à jour, 262 tests |
 | 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 262 tests |
 | 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
-| 2026-04-27| Fix dropdown mobile : `position:fixed` + `openDropdown(menu,btn)` évite le clipping de `overflow-x:auto` sur l'action bar. Fix graduations lat intermédiaires : `interpolateLatY()` interpole depuis les ticks détectés (espacement Mercator correct). 273 tests |
+| 2026-04-27| Fix grille GPS : lignes intermédiaires à 1°/degré (au lieu de 5°), interpolées depuis les graduations détectées (`interpolateLonX` linéaire + `interpolateLatY` Mercator). UI labels mis à jour (Toutes 1°). 279 tests |

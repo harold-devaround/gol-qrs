@@ -7,6 +7,7 @@ import {
   computeCalibration,
   buildGradGrid,
   interpolateLatY,
+  interpolateLonX,
 } from '../js/map/gps-calibration.js';
 
 describe('DEFAULT_CALIBRATION', () => {
@@ -197,7 +198,7 @@ describe('buildGradGrid', () => {
     expect(grid.latLines[0].y).toBe(387);
   });
 
-  it('includes intermediate 5° lines when includeIntermediate is true', () => {
+  it('includes intermediate 1° lines when includeIntermediate is true', () => {
     const grid = buildGradGrid(DEFAULT_CALIBRATION, null, true);
     // Major lines still present (23 lon + 11 lat)
     const majorLon = grid.lonLines.filter(l => !l.intermediate);
@@ -209,15 +210,15 @@ describe('buildGradGrid', () => {
     const intermLat = grid.latLines.filter(l => l.intermediate);
     expect(intermLon.length).toBeGreaterThan(0);
     expect(intermLat.length).toBeGreaterThan(0);
-    // Intermediate lon lines are at 5° steps, not multiples of 15
+    // Intermediate lon lines are at 1° steps, not multiples of 15
     for (const l of intermLon) {
       expect(l.lon % 15 !== 0).toBe(true);
-      expect(Math.abs(l.lon % 5)).toBe(0);
+      expect(Number.isInteger(l.lon)).toBe(true);
     }
-    // Intermediate lat lines are at 5° steps, not multiples of 15
+    // Intermediate lat lines are at 1° steps, not multiples of 15
     for (const l of intermLat) {
       expect(l.lat % 15 !== 0).toBe(true);
-      expect(Math.abs(l.lat % 5)).toBe(0);
+      expect(Number.isInteger(l.lat)).toBe(true);
     }
   });
 
@@ -326,5 +327,80 @@ describe('interpolateLatY', () => {
   it('returns null for empty or single-tick arrays', () => {
     expect(interpolateLatY(0, [])).toBeNull();
     expect(interpolateLatY(0, [{ y: 1726, lat: 0 }])).toBeNull();
+  });
+});
+
+describe('interpolateLonX', () => {
+  const lonLines = [
+    { x: 324,  lon: -165 },
+    { x: 497,  lon: -150 },
+    { x: 670,  lon: -135 },
+    { x: 843,  lon: -120 },
+    { x: 1016, lon: -105 },
+    { x: 1189, lon: -90  },
+    { x: 1362, lon: -75  },
+    { x: 1535, lon: -60  },
+    { x: 1708, lon: -45  },
+    { x: 1881, lon: -30  },
+    { x: 2054, lon: -15  },
+    { x: 2227, lon: 0    },
+    { x: 2400, lon: 15   },
+    { x: 2573, lon: 30   },
+    { x: 2746, lon: 45   },
+    { x: 2919, lon: 60   },
+    { x: 3092, lon: 75   },
+    { x: 3265, lon: 90   },
+    { x: 3438, lon: 105  },
+    { x: 3611, lon: 120  },
+    { x: 3784, lon: 135  },
+    { x: 3957, lon: 150  },
+    { x: 4130, lon: 165  },
+  ];
+
+  it('returns exact x for known major longitudes', () => {
+    expect(interpolateLonX(-165, lonLines)).toBe(324);
+    expect(interpolateLonX(0,    lonLines)).toBe(2227);
+    expect(interpolateLonX(165,  lonLines)).toBe(4130);
+  });
+
+  it('interpolated value lies strictly between adjacent major ticks', () => {
+    // 7° is between 0° (x=2227) and 15° (x=2400)
+    const x7 = interpolateLonX(7, lonLines);
+    expect(x7).toBeGreaterThan(2227);
+    expect(x7).toBeLessThan(2400);
+
+    // -100° is between -105° (x=1016) and -90° (x=1189)
+    const xm100 = interpolateLonX(-100, lonLines);
+    expect(xm100).toBeGreaterThan(1016);
+    expect(xm100).toBeLessThan(1189);
+  });
+
+  it('spacing is equal — longitude mapping is linear (equirectangular)', () => {
+    const x1 = interpolateLonX(1, lonLines);
+    const x2 = interpolateLonX(2, lonLines);
+    const x3 = interpolateLonX(3, lonLines);
+    // Rounding to integer pixels can cause ±1px difference; allow 1px tolerance
+    expect(Math.abs((x2 - x1) - (x3 - x2))).toBeLessThanOrEqual(1);
+  });
+
+  it('returns null when lon is out of tick range', () => {
+    expect(interpolateLonX(-170, lonLines)).toBeNull(); // west of -165°
+    expect(interpolateLonX(170,  lonLines)).toBeNull(); // east of +165°
+  });
+
+  it('returns null for empty or single-tick arrays', () => {
+    expect(interpolateLonX(0, [])).toBeNull();
+    expect(interpolateLonX(0, [{ x: 2227, lon: 0 }])).toBeNull();
+  });
+
+  it('ignores intermediate entries when bracketing', () => {
+    const linesWithInter = [
+      ...lonLines,
+      { x: 2250, lon: 2, intermediate: true },
+    ];
+    const x1 = interpolateLonX(1, linesWithInter);
+    // Should give same result as without the intermediate entry
+    const x1_clean = interpolateLonX(1, lonLines);
+    expect(x1).toBe(x1_clean);
   });
 });
