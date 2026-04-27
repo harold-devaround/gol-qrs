@@ -744,11 +744,10 @@ describe('buildGradGrid — 1°-resolution detected ticks', () => {
 
 import { LON_Y0, LON_H, LAT_X0, LAT_W } from '../js/map/gps-calibration.js';
 
-const MAP_TOP    = 105; // approximate inner top border (mapTop)
-const MAPLEFT    = DEFAULT_CALIBRATION.mapLeft;   // 148
-const MAPRIGHT   = DEFAULT_CALIBRATION.mapLeft + DEFAULT_CALIBRATION.mapWidth; // 4297
-const IMG_W      = 4449;
-const IMG_H      = 3456;
+const MAP_TOP  = 105; // approximate inner top border (mapTop)
+const MAP_RIGHT = MAP_LEFT + MAP_WIDTH; // 4297
+const IMG_W    = 4449;
+const IMG_H    = 3456;
 
 describe('scan-strip constants — coverage of inner borders', () => {
   it('LON strip starts before mapTop', () => {
@@ -766,16 +765,16 @@ describe('scan-strip constants — coverage of inner borders', () => {
   });
 
   it('LAT strip starts before mapLeft', () => {
-    expect(LAT_X0).toBeLessThan(MAPLEFT);
+    expect(LAT_X0).toBeLessThan(MAP_LEFT);
   });
 
   it('LAT strip reaches mapLeft (left scan crosses inner border)', () => {
-    expect(LAT_X0 + LAT_W).toBeGreaterThanOrEqual(MAPLEFT);
+    expect(LAT_X0 + LAT_W).toBeGreaterThanOrEqual(MAP_LEFT);
   });
 
   it('right LAT scan starts at or before mapRight', () => {
     const rightX0 = IMG_W - LAT_X0 - LAT_W;
-    expect(rightX0).toBeLessThanOrEqual(MAPRIGHT);
+    expect(rightX0).toBeLessThanOrEqual(MAP_RIGHT);
   });
 });
 
