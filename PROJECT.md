@@ -78,8 +78,8 @@ tests/
 - **Sauvegarde/chargement** : slots nommés en localStorage avec métadonnées + options (unité, ratio, snap, vue)
 - **Barre de statut** : coordonnées temps réel, GPS (lon/lat), zoom, outil actif
 - **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut. Calibration auto par détection des graduations 15° en bordures de la carte (mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657). Module `gps-calibration.js` : détection runtime + fallback précis. Le 0°/0° est au centre de l'image (lon=0 à x≈2222, lat=0 à y=1726).
-- **Lignes guide sur point** : option `showGuides` par point (checkbox dans le panneau propriétés) → croix horizontale + verticale en pointillés colorés à travers le point
-- **Grille GPS** : bouton "Grille" dans la barre d'action pour afficher/masquer la grille des graduations détectées avec valeurs lon/lat
+- **Lignes guide sur point** : option `showGuides` par point (checkbox dans le panneau propriétés) → croix horizontale + verticale en pointillés colorés. Affiche `lat: XX.XX°` au bord gauche du viewport et `lon: XX.XX°` au bord haut, indiquant les coordonnées GPS du point sur les graduations de la carte.
+- **Grille GPS** : dropdown "Grille" dans la barre d'action — 3 modes : Aucune / Principales (15°) / Toutes (5° avec lignes intermédiaires). Les lignes intermédiaires sont calculées depuis la calibration, plus fines et translucides.
 - **Constructions** : médianes et médiatrices auto pour les triangles
 
 ### Galeries (CP & Tuiles)
@@ -103,7 +103,7 @@ tests/
 ## Commandes
 
 ```bash
-npm test           # npx vitest run — lance les 166 tests
+npm test           # npx vitest run — lance les 266 tests
 npm run test:watch # vitest en mode watch
 ```
 
@@ -136,4 +136,5 @@ npm run test:watch # vitest en mode watch
 | 2026-04-26| Fix pinch zoom : `this.el` → `upperCanvasEl` (bonne cible), `stopImmediatePropagation`, `touch-action:none` sur upper canvas, mise à jour `active` map sur tout `pointermove`, 266 tests |
 | 2026-04-26| GPS calibration par détection des graduations en bordures : `gps-calibration.js` (détection runtime + fallback précis), constantes corrigées (mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657), lignes guide sur point (showGuides), grille GPS overlay togglable (bouton Grille), 262 tests |
 | 2026-04-26| Fix détection graduations : bandes de scan corrigées (lon: y=65–85, lat: x=55–100), seuil brightness 200 (ticks CMYK ≈144), constantes DEFAULT_CALIBRATION mises à jour, 262 tests |
-| 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 286 tests |
+| 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 262 tests |
+| 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
