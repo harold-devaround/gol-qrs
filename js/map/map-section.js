@@ -151,6 +151,15 @@ export function initMap(container) {
 
   // ──── Action Bar ──────────────────────────────────────
 
+  // Position a dropdown menu below its trigger button using fixed positioning,
+  // so it is never clipped by the action bar's overflow-x: auto.
+  function openDropdown(menu, btn) {
+    const rect = btn.getBoundingClientRect();
+    menu.style.top  = rect.bottom + 'px';
+    menu.style.left = rect.left + 'px';
+    menu.classList.add('open');
+  }
+
   function updateActionBar() {
     const bar = container.querySelector('#map-actionbar');
     bar.innerHTML = `
@@ -275,7 +284,11 @@ export function initMap(container) {
     if (gradBtn && gradMenu) {
       gradBtn.onclick = (e) => {
         e.stopPropagation();
-        gradMenu.classList.toggle('open');
+        if (gradMenu.classList.contains('open')) {
+          gradMenu.classList.remove('open');
+        } else {
+          openDropdown(gradMenu, gradBtn);
+        }
       };
       gradMenu.querySelectorAll('[name="grad-grid-mode"]').forEach(radio => {
         radio.onchange = () => {
@@ -314,7 +327,11 @@ export function initMap(container) {
     if (lblBtn && lblMenu) {
       lblBtn.onclick = (e) => {
         e.stopPropagation();
-        lblMenu.classList.toggle('open');
+        if (lblMenu.classList.contains('open')) {
+          lblMenu.classList.remove('open');
+        } else {
+          openDropdown(lblMenu, lblBtn);
+        }
       };
       lblMenu.querySelectorAll('[data-lbl-type]').forEach(chk => {
         chk.onchange = () => {
@@ -336,7 +353,11 @@ export function initMap(container) {
     if (angBtn && angMenu) {
       angBtn.onclick = (e) => {
         e.stopPropagation();
-        angMenu.classList.toggle('open');
+        if (angMenu.classList.contains('open')) {
+          angMenu.classList.remove('open');
+        } else {
+          openDropdown(angMenu, angBtn);
+        }
       };
       angMenu.querySelectorAll('[name="angle-snap-step"]').forEach(radio => {
         radio.onchange = () => {
