@@ -145,9 +145,9 @@ export function computeCalibration(lonTicksX, latTicksY) {
         const mean = rVals.reduce((a, b) => a + b, 0) / rVals.length;
         // Only accept Mercator-consistent tick sets (low relative stddev).
         // Linearly-spaced ticks produce widely varying R values and are rejected.
-        const isConsistent = rVals.length < 5 ||
+        const isMercatorConsistent = rVals.length < 5 ||
           Math.sqrt(rVals.reduce((s, r) => s + (r - mean) ** 2, 0) / rVals.length) / mean < 0.15;
-        if (isConsistent) cal.mercRadius = Math.round(mean);
+        if (isMercatorConsistent) cal.mercRadius = Math.round(mean);
       }
     } else {
       // 15°-resolution: lat values top→bottom: 75, 60, 45, 30, 15, 0, −15, …, −75

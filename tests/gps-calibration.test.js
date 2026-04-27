@@ -35,15 +35,11 @@ describe('expected graduation counts', () => {
   });
 
   it('top and bottom borders have the same expected LON count', () => {
-    // Both scan strips use the same LON_EXPECTED constant
-    expect(LON_EXPECTED).toBe(LON_EXPECTED); // trivial equality
     // Verify the constant itself has the right value for ±180° + zero
     expect(LON_EXPECTED).toBe(360 + 1);
   });
 
   it('left and right borders have the same expected LAT count', () => {
-    // Both scan strips use the same LAT_EXPECTED constant
-    expect(LAT_EXPECTED).toBe(LAT_EXPECTED); // trivial equality
     // Verify the constant itself has the right value for ±90° + zero
     expect(LAT_EXPECTED).toBe(180 + 1);
   });
