@@ -4,6 +4,8 @@ import {
   findTickCenters,
   columnProfile,
   rowProfile,
+  blueExcessColumnProfile,
+  blueExcessRowProfile,
   computeCalibration,
   buildGradGrid,
   interpolateLatY,
@@ -402,5 +404,197 @@ describe('interpolateLonX', () => {
     // Should give same result as without the intermediate entry
     const x1_clean = interpolateLonX(1, lonLines);
     expect(x1).toBe(x1_clean);
+  });
+});
+
+// ── Simulated tick data reused across the two-graduation tests ─────────────
+const SIM_LON_X      = [324, 497, 670, 843, 1016, 1189, 1362, 1535, 1708, 1881, 2054, 2227, 2400, 2573, 2746, 2919, 3092, 3265, 3438, 3611, 3784, 3957, 4130];
+const SIM_LAT_Y      = [387, 857, 1145, 1364, 1551, 1726, 1900, 2087, 2306, 2594, 3064];
+const SIM_LAT_VALUES = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
+
+/** Build a side's tick array with a per-tick pixel offset. */
+function makeLonSide(xs, offset) {
+  return xs.map((x, i) => ({ x: x + offset, lon: -165 + i * 15 }));
+}
+function makeLatSide(ys, offset) {
+  return ys.map((y, i) => ({ y: y + offset, lat: SIM_LAT_VALUES[i] }));
+}
+
+describe('blueExcessColumnProfile', () => {
+  it('returns 255 for a fully white strip', () => {
+    // White pixel: R=255, G=255, B=255 → blueExcess=0 → inv=255
+    const data = new Uint8ClampedArray(4 * 6 * 4).fill(255);
+    const prof = blueExcessColumnProfile(data, 6, 4);
+    expect(prof).toHaveLength(6);
+    prof.forEach(v => expect(v).toBe(255));
+  });
+
+  it('detects a light-blue column in an otherwise-white strip', () => {
+    // 5×2 strip, col 2 has light-blue pixels (R=150, G=180, B=230)
+    const data = new Uint8ClampedArray(5 * 2 * 4).fill(255);
+    for (let row = 0; row < 2; row++) {
+      const idx = (row * 5 + 2) * 4;
+      data[idx]     = 150; // R
+      data[idx + 1] = 180; // G
+      data[idx + 2] = 230; // B
+      data[idx + 3] = 255; // A
+    }
+    const prof = blueExcessColumnProfile(data, 5, 2);
+    // col 2: excess = 2*230 - 150 - 180 = 130 → inv = 125 (well below 255)
+    expect(prof[2]).toBeLessThan(200);
+    // other cols remain white (inv = 255)
+    [0, 1, 3, 4].forEach(x => expect(prof[x]).toBe(255));
+  });
+
+  it('chooses the minimum inverted value (= maximum blue excess) across rows', () => {
+    // 3×3 strip: col 1 row 0 is slightly blue, row 1 is more blue, row 2 is white
+    const data = new Uint8ClampedArray(3 * 3 * 4).fill(255);
+    // row 0 col 1: slight blue (excess = 2*210-200-195 = 25 → inv=230)
+    let idx = (0 * 3 + 1) * 4;
+    data[idx]=200; data[idx+1]=195; data[idx+2]=210; data[idx+3]=255;
+    // row 1 col 1: more blue (excess = 2*240-160-170 = 150 → inv=105)
+    idx = (1 * 3 + 1) * 4;
+    data[idx]=160; data[idx+1]=170; data[idx+2]=240; data[idx+3]=255;
+    const prof = blueExcessColumnProfile(data, 3, 3);
+    // Should pick the row with highest blue excess → inv=105
+    expect(prof[1]).toBe(105);
+  });
+});
+
+describe('blueExcessRowProfile', () => {
+  it('returns 255 for a fully white strip', () => {
+    const data = new Uint8ClampedArray(4 * 4 * 6).fill(255);
+    const prof = blueExcessRowProfile(data, 4, 6);
+    expect(prof).toHaveLength(6);
+    prof.forEach(v => expect(v).toBe(255));
+  });
+
+  it('detects a light-blue row in an otherwise-white strip', () => {
+    // 4×5 strip, row 2 has light-blue pixels
+    const data = new Uint8ClampedArray(4 * 5 * 4).fill(255);
+    for (let col = 0; col < 4; col++) {
+      const idx = (2 * 4 + col) * 4;
+      data[idx]     = 160; // R
+      data[idx + 1] = 185; // G
+      data[idx + 2] = 230; // B
+      data[idx + 3] = 255;
+    }
+    const prof = blueExcessRowProfile(data, 4, 5);
+    // row 2: excess = 2*230-160-185 = 115 → inv = 140
+    expect(prof[2]).toBeLessThan(200);
+    [0, 1, 3, 4].forEach(y => expect(prof[y]).toBe(255));
+  });
+
+  it('is symmetric to blueExcessColumnProfile on transposed data', () => {
+    // A single pixel at row=1, col=2 with high blue excess
+    const W = 4, H = 4;
+    const data = new Uint8ClampedArray(W * H * 4).fill(255);
+    const idx = (1 * W + 2) * 4;
+    data[idx]=100; data[idx+1]=120; data[idx+2]=220; data[idx+3]=255;
+    const colProf = blueExcessColumnProfile(data, W, H);
+    const rowProf = blueExcessRowProfile(data, W, H);
+    // Column 2 should be low, row 1 should be low
+    expect(colProf[2]).toBeLessThan(200);
+    expect(rowProf[1]).toBeLessThan(200);
+    // Others remain 255
+    [0, 1, 3].forEach(x => expect(colProf[x]).toBe(255));
+    [0, 2, 3].forEach(y => expect(rowProf[y]).toBe(255));
+  });
+});
+
+describe('buildGradGrid — grid lines through 2 graduations (one each side)', () => {
+  // ── Longitude: each vertical grid line should align with ticks on BOTH
+  //    top border (lonTicksTop) AND bottom border (lonTicksBottom) ──────────
+  it('each major lon line is within 1 px of a tick on the top border', () => {
+    const top    = makeLonSide(SIM_LON_X, 0);
+    const bottom = makeLonSide(SIM_LON_X, 1); // 1 px offset
+    const grid   = buildGradGrid(DEFAULT_CALIBRATION, { lonTicksTop: top, lonTicksBottom: bottom });
+    const major  = grid.lonLines.filter(l => !l.intermediate);
+    expect(major).toHaveLength(23);
+    for (const line of major) {
+      const match = top.find(t => Math.abs(t.x - line.x) <= 1);
+      expect(match, `lon ${line.lon}° not within 1px of top tick`).toBeDefined();
+    }
+  });
+
+  it('each major lon line is within 1 px of a tick on the bottom border', () => {
+    const top    = makeLonSide(SIM_LON_X, 0);
+    const bottom = makeLonSide(SIM_LON_X, 1);
+    const grid   = buildGradGrid(DEFAULT_CALIBRATION, { lonTicksTop: top, lonTicksBottom: bottom });
+    const major  = grid.lonLines.filter(l => !l.intermediate);
+    for (const line of major) {
+      const match = bottom.find(t => Math.abs(t.x - line.x) <= 1);
+      expect(match, `lon ${line.lon}° not within 1px of bottom tick`).toBeDefined();
+    }
+  });
+
+  it('lon grid lines use the average of top and bottom tick x positions', () => {
+    const top    = makeLonSide(SIM_LON_X, 0);   // x values: SIM_LON_X
+    const bottom = makeLonSide(SIM_LON_X, 2);   // x values: SIM_LON_X + 2
+    const grid   = buildGradGrid(DEFAULT_CALIBRATION, { lonTicksTop: top, lonTicksBottom: bottom });
+    const major  = grid.lonLines.filter(l => !l.intermediate);
+    major.forEach((line, i) => {
+      const expected = Math.round((SIM_LON_X[i] + SIM_LON_X[i] + 2) / 2);
+      expect(line.x).toBe(expected);
+    });
+  });
+
+  // ── Latitude: each horizontal grid line should align with ticks on BOTH
+  //    left border (latTicksLeft) AND right border (latTicksRight) ──────────
+  it('each major lat line is within 1 px of a tick on the left border', () => {
+    const left  = makeLatSide(SIM_LAT_Y, 0);
+    const right = makeLatSide(SIM_LAT_Y, 1);
+    const grid  = buildGradGrid(DEFAULT_CALIBRATION, { latTicksLeft: left, latTicksRight: right });
+    const major = grid.latLines.filter(l => !l.intermediate);
+    expect(major).toHaveLength(11);
+    for (const line of major) {
+      const match = left.find(t => Math.abs(t.y - line.y) <= 1);
+      expect(match, `lat ${line.lat}° not within 1px of left tick`).toBeDefined();
+    }
+  });
+
+  it('each major lat line is within 1 px of a tick on the right border', () => {
+    const left  = makeLatSide(SIM_LAT_Y, 0);
+    const right = makeLatSide(SIM_LAT_Y, 1);
+    const grid  = buildGradGrid(DEFAULT_CALIBRATION, { latTicksLeft: left, latTicksRight: right });
+    const major = grid.latLines.filter(l => !l.intermediate);
+    for (const line of major) {
+      const match = right.find(t => Math.abs(t.y - line.y) <= 1);
+      expect(match, `lat ${line.lat}° not within 1px of right tick`).toBeDefined();
+    }
+  });
+
+  it('lat grid lines use the average of left and right tick y positions', () => {
+    const left  = makeLatSide(SIM_LAT_Y, 0);
+    const right = makeLatSide(SIM_LAT_Y, 4);  // 4 px offset
+    const grid  = buildGradGrid(DEFAULT_CALIBRATION, { latTicksLeft: left, latTicksRight: right });
+    const major = grid.latLines.filter(l => !l.intermediate);
+    major.forEach((line, i) => {
+      const expected = Math.round((SIM_LAT_Y[i] + SIM_LAT_Y[i] + 4) / 2);
+      expect(line.y).toBe(expected);
+    });
+  });
+
+  it('falls back to lonTicks when only one side detected for lon', () => {
+    const ticks = makeLonSide(SIM_LON_X, 0);
+    // Only lonTicks provided (no lonTicksTop/Bottom)
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { lonTicks: ticks });
+    const major = grid.lonLines.filter(l => !l.intermediate);
+    expect(major).toHaveLength(23);
+    major.forEach((line, i) => expect(line.x).toBe(SIM_LON_X[i]));
+  });
+
+  it('falls back to latTicks when only one side detected for lat', () => {
+    const ticks = makeLatSide(SIM_LAT_Y, 0);
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { latTicks: ticks });
+    const major = grid.latLines.filter(l => !l.intermediate);
+    expect(major).toHaveLength(11);
+    major.forEach((line, i) => expect(line.y).toBe(SIM_LAT_Y[i]));
+  });
+
+  it('falls back to calibration formula when no ticks at all', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, null);
+    expect(grid.lonLines).toHaveLength(23);
+    expect(grid.latLines).toHaveLength(11);
   });
 });

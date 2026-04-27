@@ -50,8 +50,8 @@ tests/
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
   fabric-canvas-touch.test.js← 24 tests (jsdom, hors vitest run standard)
-  gps-calibration.test.js    ← 37 tests (interpolateLatY + buildGradGrid avec ticks détectés)
-  TOTAL                      ← 273 tests (+ 24 jsdom)
+  gps-calibration.test.js    ← 47 tests (interpolateLatY + buildGradGrid avec ticks détectés + dual-border)
+  TOTAL                      ← 294 tests (+ 24 jsdom)
 ```
 
 ## Stack technique
@@ -138,4 +138,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-26| Fix détection graduations : bandes de scan corrigées (lon: y=65–85, lat: x=55–100), seuil brightness 200 (ticks CMYK ≈144), constantes DEFAULT_CALIBRATION mises à jour, 262 tests |
 | 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 262 tests |
 | 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
-| 2026-04-27| Fix grille GPS : lignes intermédiaires à 1°/degré (au lieu de 5°), interpolées depuis les graduations détectées (`interpolateLonX` linéaire + `interpolateLatY` Mercator). UI labels mis à jour (Toutes 1°). 279 tests |
+| 2026-04-27| Refonte détection graduations : scan 4 bordures (top+bottom lon, left+right lat), profils blueExcessColumnProfile/blueExcessRowProfile (bleu clair sur blanc), positions moyennées, buildGradGrid avec lonTicksTop/Bottom + latTicksLeft/Right. Lignes de grille en segments clippés aux limites de l'image, solides (pas de tirets), légèrement plus épaisses, semi-transparentes. Tests: blueExcessColumnProfile, blueExcessRowProfile, 2-graduations-par-ligne. 294 tests |
