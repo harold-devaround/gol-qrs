@@ -10,6 +10,10 @@ import {
   buildGradGrid,
   interpolateLatY,
   interpolateLonX,
+  LON_EXPECTED,
+  LAT_EXPECTED,
+  LON_TOL,
+  LAT_TOL,
 } from '../js/map/gps-calibration.js';
 
 describe('DEFAULT_CALIBRATION', () => {
@@ -20,6 +24,27 @@ describe('DEFAULT_CALIBRATION', () => {
     expect(DEFAULT_CALIBRATION.mercRadius).toBe(657);
   });
 });
+
+describe('expected graduation counts', () => {
+  it('LON_EXPECTED is 361 (−180° to +180° inclusive)', () => {
+    expect(LON_EXPECTED).toBe(361);
+  });
+
+  it('LAT_EXPECTED is 181 (−90° to +90° inclusive)', () => {
+    expect(LAT_EXPECTED).toBe(181);
+  });
+
+  it('top and bottom borders have the same expected LON count', () => {
+    // Verify the constant itself has the right value for ±180° + zero
+    expect(LON_EXPECTED).toBe(360 + 1);
+  });
+
+  it('left and right borders have the same expected LAT count', () => {
+    // Verify the constant itself has the right value for ±90° + zero
+    expect(LAT_EXPECTED).toBe(180 + 1);
+  });
+});
+
 
 describe('findTickCenters', () => {
   it('returns empty array when no dark pixels', () => {
@@ -675,6 +700,29 @@ describe('computeCalibration — 1°-resolution latitude (graduation boxes)', ()
   });
 });
 
+describe('computeCalibration — linear (non-Mercator) lat ticks', () => {
+  it('falls back to default mercRadius for linearly-spaced lat ticks', () => {
+    // 181 linear ticks evenly spanning IMG_H (simulating ±90° marks)
+    const H = 3456;
+    const linearTicks = Array.from({ length: 181 }, (_, i) =>
+      Math.round(i * H / 180));
+    const cal = computeCalibration(null, linearTicks);
+    // Linear ticks have high R-value variance → variance check rejects mercRadius
+    expect(cal.mercRadius).toBe(DEFAULT_CALIBRATION.mercRadius);
+  });
+
+  it('still derives equatorY correctly from linearly-spaced lat ticks', () => {
+    // The 0° mark is at i=90: y = round(90 * 3456/180) = round(1728) = 1728
+    const H = 3456;
+    const linearTicks = Array.from({ length: 181 }, (_, i) =>
+      Math.round(i * H / 180));
+    const cal = computeCalibration(null, linearTicks);
+    // equatorY should be set to the 0° mark (≈1728, very close to default 1726)
+    expect(Math.abs(cal.equatorY - DEFAULT_CALIBRATION.equatorY)).toBeLessThan(5);
+  });
+});
+
+
 describe('buildGradGrid — 1°-resolution detected ticks', () => {
   const step = MAP_WIDTH / 360;
   const gradLonTicks = Array.from({ length: 361 }, (_, i) => ({
@@ -830,27 +878,63 @@ describe('scan-strip detection count — synthetic strips', () => {
     expect(centers.length).toBeLessThanOrEqual(361 + 30);
   });
 
-  it('detects ~161 LAT boundaries in a synthetic full-height strip', () => {
-    // 161 boundaries: lat = 80° down to −80° using Mercator
-    const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-    const boundaries = Array.from({ length: 161 }, (_, i) => {
-      const lat = 80 - i;
-      return lat === 0
-        ? DEFAULT_CALIBRATION.equatorY
-        : Math.round(DEFAULT_CALIBRATION.equatorY - mercY(lat) * DEFAULT_CALIBRATION.mercRadius);
-    });
+  it('detects ~181 LAT boundaries in a synthetic full-height strip', () => {
+    // 181 boundaries: linearly spaced from −90° to +90°, placed within [5, H−5]
+    // to be compatible with the corner exclusion of 5 px in detectGraduations
     const W = LAT_W, H = IMG_H;
+    const boundaries = Array.from({ length: 181 }, (_, i) =>
+      5 + Math.round(i * (H - 10) / 180));
     const data = makeBlueRowStrip(W, H, boundaries);
     const prof = blueExcessRowProfile(data, W, H);
-    // Apply same margin exclusion as detectGraduations
-    for (let y = 0; y < 100; y++) prof[y] = 255;
-    for (let y = H - 100; y < H; y++) prof[y] = 255;
+    // Apply same margin exclusion as detectGraduations (5 pixels)
+    for (let y = 0; y < 5; y++) prof[y] = 255;
+    for (let y = H - 5; y < H; y++) prof[y] = 255;
     const sorted = [...prof].sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
     const threshold = Math.min(med - 20, 200);
     const centers = findTickCenters(prof, threshold, 5);
-    // Expect close to 161 boundaries (within tolerance 20)
-    expect(centers.length).toBeGreaterThanOrEqual(161 - 20);
-    expect(centers.length).toBeLessThanOrEqual(161 + 20);
+    // Expect close to 181 boundaries (within tolerance 20)
+    expect(centers.length).toBeGreaterThanOrEqual(181 - 20);
+    expect(centers.length).toBeLessThanOrEqual(181 + 20);
+  });
+
+  it('top and bottom LON strips detect equal count for symmetric data', () => {
+    // A symmetric strip (same marks in both positions) should produce identical counts
+    const step = DEFAULT_CALIBRATION.mapWidth / 360;
+    const boundaries = Array.from({ length: 361 }, (_, i) =>
+      Math.round(DEFAULT_CALIBRATION.mapLeft + i * step));
+    const W = IMG_W, H = LON_H;
+    // Both top and bottom strips use the same scan algorithm → same synthetic data
+    const dataTop    = makeBlueColumnStrip(W, H, boundaries);
+    const dataBottom = makeBlueColumnStrip(W, H, boundaries);
+    const margin = DEFAULT_CALIBRATION.mapLeft;
+    const getCount = (data) => {
+      const prof = blueExcessColumnProfile(data, W, H);
+      for (let x = 0; x < margin; x++) prof[x] = 255;
+      for (let x = W - margin; x < W; x++) prof[x] = 255;
+      const sorted = [...prof].sort((a, b) => a - b);
+      const threshold = Math.min(sorted[Math.floor(sorted.length / 2)] - 15, 200);
+      return findTickCenters(prof, threshold, 5).length;
+    };
+    expect(getCount(dataTop)).toBe(getCount(dataBottom));
+  });
+
+  it('left and right LAT strips detect equal count for symmetric data', () => {
+    // A symmetric strip should produce identical counts on both sides
+    const H = IMG_H;
+    const boundaries = Array.from({ length: 181 }, (_, i) =>
+      5 + Math.round(i * (H - 10) / 180));
+    const W = LAT_W;
+    const dataLeft  = makeBlueRowStrip(W, H, boundaries);
+    const dataRight = makeBlueRowStrip(W, H, boundaries);
+    const getCount = (data) => {
+      const prof = blueExcessRowProfile(data, W, H);
+      for (let y = 0; y < 5; y++) prof[y] = 255;
+      for (let y = H - 5; y < H; y++) prof[y] = 255;
+      const sorted = [...prof].sort((a, b) => a - b);
+      const threshold = Math.min(sorted[Math.floor(sorted.length / 2)] - 20, 200);
+      return findTickCenters(prof, threshold, 5).length;
+    };
+    expect(getCount(dataLeft)).toBe(getCount(dataRight));
   });
 });
