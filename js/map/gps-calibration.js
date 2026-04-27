@@ -261,6 +261,32 @@ export function detectGraduations(img) {
 }
 
 /**
+ * Interpolate the x-pixel position for a given longitude using adjacent major
+ * tick positions and linear interpolation (longitude mapping is equirectangular).
+ *
+ * @param {number} lon   – Target longitude in degrees
+ * @param {Array<{x: number, lon: number}>} lonLines – Major tick positions sorted
+ *                          west-to-east (ascending longitude, ascending x).
+ *                          Only non-intermediate entries are used.
+ * @returns {number|null} Pixel x position, or null if out of tick range
+ */
+export function interpolateLonX(lon, lonLines) {
+  if (!lonLines || lonLines.length < 2) return null;
+  const majors = lonLines.filter(l => !l.intermediate);
+  if (majors.length < 2) return null;
+  let left = null, right = null;
+  for (const tick of majors) {
+    if (tick.lon <= lon) left = tick;
+    else if (right === null) { right = tick; break; }
+  }
+  if (left === null) return null;
+  if (left.lon === lon) return left.x; // exact match (handles right boundary too)
+  if (right === null) return null;
+  const t = (lon - left.lon) / (right.lon - left.lon);
+  return Math.round(left.x + t * (right.x - left.x));
+}
+
+/**
  * Interpolate the y-pixel position for a given latitude using adjacent major
  * tick positions and the Mercator relationship.
  *
@@ -302,7 +328,7 @@ export function interpolateLatY(lat, ticks) {
  *
  * @param {object} cal – { mapLeft, mapWidth, equatorY, mercRadius }
  * @param {{ lonTicks, latTicks }} detected – optional detected ticks
- * @param {boolean} includeIntermediate – when true, also add 5° intermediate lines
+ * @param {boolean} includeIntermediate – when true, also add 1° intermediate lines
  *                                        tagged with { intermediate: true }
  * @returns {{ lonLines: [{x,lon,intermediate?}], latLines: [{y,lat,intermediate?}] }}
  */
@@ -338,15 +364,22 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
     }
   }
 
-  // Intermediate lines at 5° intervals (between the 15° major marks)
+  // Intermediate lines at 1° intervals (between the 15° major marks).
+  // Longitude uses linear interpolation between adjacent detected major ticks
+  // so the lines align with the actual graduation marks on the map.
+  // Latitude uses Mercator-accurate interpolation from the major tick positions.
   if (includeIntermediate) {
-    for (let lon = -175; lon <= 175; lon += 5) {
+    for (let lon = -179; lon <= 179; lon += 1) {
       if (lon % 15 === 0) continue; // already a major line
-      const x = Math.round(cal.mapLeft + (lon + 180) / 360 * cal.mapWidth);
+      let x = interpolateLonX(lon, lonLines);
+      if (x === null) {
+        // Fallback to calibration formula when outside detected tick range
+        x = Math.round(cal.mapLeft + (lon + 180) / 360 * cal.mapWidth);
+      }
       lonLines.push({ x, lon, intermediate: true });
     }
 
-    for (let lat = 70; lat >= -70; lat -= 5) {
+    for (let lat = 74; lat >= -74; lat -= 1) {
       if (lat % 15 === 0) continue; // already a major line
       // Use the already-built major lat lines for Mercator-accurate interpolation
       // so intermediate lines are consistent with the detected/computed major lines.

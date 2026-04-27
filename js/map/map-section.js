@@ -193,7 +193,7 @@ export function initMap(container) {
         <div class="abar-dropdown" id="grad-grid-dropdown">
           <button class="abar-btn abar-toggle ${gradGridMode !== 'none' ? 'active' : ''}" id="btn-grad-grid" title="Afficher la grille des graduations GPS">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-            <span>${gradGridMode === 'none' ? 'Grille' : gradGridMode === 'major' ? 'Grille 15°' : 'Grille 5°'}</span>
+            <span>${gradGridMode === 'none' ? 'Grille' : gradGridMode === 'major' ? 'Grille 15°' : 'Grille 1°'}</span>
           </button>
           <div class="abar-dropdown-menu" id="grad-grid-menu">
             <label class="abar-dropdown-item">
@@ -206,7 +206,7 @@ export function initMap(container) {
             </label>
             <label class="abar-dropdown-item">
               <input type="radio" name="grad-grid-mode" value="all" ${gradGridMode === 'all' ? 'checked' : ''}>
-              <span>Toutes (5°)</span>
+              <span>Toutes (1°)</span>
             </label>
           </div>
         </div>
