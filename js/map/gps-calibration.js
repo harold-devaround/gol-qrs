@@ -1,14 +1,13 @@
 /**
  * GPS graduation detection from WorldMap image borders.
  *
- * Detects tick marks at the top and left borders of the WorldMap image, then
- * derives the Mercator GPS calibration parameters used for lon/lat conversion.
+ * Detects the 1°-resolution graduation boxes (blue outline, white fill) along
+ * all four borders of the WorldMap image, then derives the Mercator GPS
+ * calibration parameters used for lon/lat conversion.
  *
- * Fallback constants were derived by pixel-analysing the actual
- * 2019_WorldMap_MHF_1.2x1.6m.jpg (4449×3456 px, CMYK JPEG):
- *   – Longitude ticks: scan strip y=65–85, 23 marks at 15° intervals
- *   – Latitude  ticks: scan column x=55–100, 11 marks at 15° intervals
- *   – 0°/0° is at the image centre: lon=0 at x≈2224, lat=0 at y≈1726
+ * Image: 2019_WorldMap_MHF_1.2x1.6m.jpg (4449×3456 px, CMYK JPEG)
+ *   mapLeft=148, mapWidth=4149, mapTop≈105, equatorY=1726, mercRadius=657
+ *   Graduation boxes: top/bottom strip y=68–108 (LON), left/right strip x=105–152 (LAT)
  */
 
 /**
@@ -24,6 +23,20 @@ export const DEFAULT_CALIBRATION = {
   equatorY:   1726,
   mercRadius: 657,
 };
+
+/**
+ * Scan-strip constants for graduation box detection.
+ *
+ * The 1°-graduation boxes are adjacent to the inner map borders:
+ *   LON strips (top/bottom): y = LON_Y0 … LON_Y0+LON_H, crosses mapTop≈105
+ *   LAT strips (left/right): x = LAT_X0 … LAT_X0+LAT_W, crosses mapLeft=148
+ *     right strip x0 = W − LAT_X0 − LAT_W = W − 152 = mapRight (W=4449)
+ */
+export const LON_Y0 = 68;   // top strip start row
+export const LON_H  = 40;   // top strip height (ends at y≈108, past mapTop≈105)
+export const LAT_X0 = 105;  // left strip start column
+export const LAT_W  = 47;   // left strip width (ends at x≈152, past mapLeft=148;
+                             //   right strip start = W−152 = mapRight=4297 when W=4449)
 
 // ---------------------------------------------------------------------------
 // Pure computation helpers (unit-testable without DOM)
@@ -319,13 +332,11 @@ export function detectGraduations(img) {
     return findTickCenters(prof, threshold, 5);
   };
 
-  // ── Detect longitude graduation box boundaries (y=88–102 near mapTop≈105) ──
-  const LON_Y0 = 88, LON_H = 14;
+  // ── Detect longitude graduation box boundaries (y=68–108 near mapTop≈105) ──
   const lonTopX    = scanLonStrip(LON_Y0, LON_H);
   const lonBottomX = scanLonStrip(H - LON_Y0 - LON_H, LON_H);
 
-  // ── Detect latitude graduation box boundaries (x=105–145 near mapLeft≈148) ──
-  const LAT_X0 = 105, LAT_W = 40;
+  // ── Detect latitude graduation box boundaries (x=105–152 near mapLeft≈148) ──
   const latLeftY  = scanLatStrip(LAT_X0, LAT_W);
   const latRightY = scanLatStrip(W - LAT_X0 - LAT_W, LAT_W);
 

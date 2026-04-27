@@ -50,8 +50,8 @@ tests/
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
   fabric-canvas-touch.test.js← 24 tests (jsdom, hors vitest run standard)
-  gps-calibration.test.js    ← 61 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution)
-  TOTAL                      ← 308 tests (+ 24 jsdom)
+  gps-calibration.test.js    ← 69 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count)
+  TOTAL                      ← 316 tests (+ 24 jsdom)
 ```
 
 ## Stack technique
@@ -139,4 +139,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 262 tests |
 | 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
 | 2026-04-27| Refonte détection graduations : scan 4 bordures (top+bottom lon, left+right lat), profils blueExcessColumnProfile/blueExcessRowProfile (bleu clair sur blanc), positions moyennées, buildGradGrid avec lonTicksTop/Bottom + latTicksLeft/Right. Lignes de grille en segments clippés aux limites de l'image, solides (pas de tirets), légèrement plus épaisses, semi-transparentes. Tests: blueExcessColumnProfile, blueExcessRowProfile, 2-graduations-par-ligne. 294 tests |
-| 2026-04-27| Fix emplacement détection des graduations : scan déplacé des "valeurs" (y=65-85) vers les vraies cases de graduation 1° (y=88-102, juste avant la bordure sombre mapTop≈105). minGap 50→5 pour détecter chaque case ~11.5px. computeCalibration : nouvelles branches 1°-résolution (n≥300 lon, n≥100 lat) avec fit direct mapLeft/mapWidth et fit Mercator. buildGradGrid : filtrage lon%15/lat%15 pour les lignes majeures, utilisation directe des ticks 1° pour les intermédiaires. 308 tests |
+| 2026-04-27| Fix détection graduations toutes bordures : LON_Y0=68/LON_H=40 (y=68-108, dépasse mapTop≈105), LAT_X0=105/LAT_W=47 (x=105-152, dépasse mapLeft=148, right start=W-152=mapRight=4297). Rendu debug ticks proche bord intérieur (LON_Y_CENTER=100, LAT_X_CENTER=140). Export constantes. 8 nouveaux tests (couverture scan + compte synthétique 361 lon / 161 lat). 316 tests |

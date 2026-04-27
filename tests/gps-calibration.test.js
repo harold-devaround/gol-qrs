@@ -739,3 +739,119 @@ describe('buildGradGrid — 1°-resolution detected ticks', () => {
     expect(line1.y).toBe(gradLatTicks[79].y);
   });
 });
+
+// ── Scan-strip constants coverage tests ──────────────────────────────────────
+
+import { LON_Y0, LON_H, LAT_X0, LAT_W } from '../js/map/gps-calibration.js';
+
+const MAP_TOP    = 105; // approximate inner top border (mapTop)
+const MAPLEFT    = DEFAULT_CALIBRATION.mapLeft;   // 148
+const MAPRIGHT   = DEFAULT_CALIBRATION.mapLeft + DEFAULT_CALIBRATION.mapWidth; // 4297
+const IMG_W      = 4449;
+const IMG_H      = 3456;
+
+describe('scan-strip constants — coverage of inner borders', () => {
+  it('LON strip starts before mapTop', () => {
+    expect(LON_Y0).toBeLessThan(MAP_TOP);
+  });
+
+  it('LON strip reaches mapTop (top scan crosses inner border)', () => {
+    expect(LON_Y0 + LON_H).toBeGreaterThanOrEqual(MAP_TOP);
+  });
+
+  it('bottom LON strip starts before mapBottom', () => {
+    const botY0 = IMG_H - LON_Y0 - LON_H;
+    const mapBottom = IMG_H - MAP_TOP;
+    expect(botY0).toBeLessThanOrEqual(mapBottom);
+  });
+
+  it('LAT strip starts before mapLeft', () => {
+    expect(LAT_X0).toBeLessThan(MAPLEFT);
+  });
+
+  it('LAT strip reaches mapLeft (left scan crosses inner border)', () => {
+    expect(LAT_X0 + LAT_W).toBeGreaterThanOrEqual(MAPLEFT);
+  });
+
+  it('right LAT scan starts at or before mapRight', () => {
+    const rightX0 = IMG_W - LAT_X0 - LAT_W;
+    expect(rightX0).toBeLessThanOrEqual(MAPRIGHT);
+  });
+});
+
+describe('scan-strip detection count — synthetic strips', () => {
+  // Helpers to build a synthetic RGBA pixel strip with N evenly-spaced
+  // blue-excess "column" boundaries (for LON) or "row" boundaries (for LAT).
+  function makeBlueColumnStrip(width, height, boundaries) {
+    const data = new Uint8ClampedArray(width * height * 4).fill(255);
+    for (const x of boundaries) {
+      for (let y = 0; y < height; y++) {
+        const idx = (y * width + x) * 4;
+        data[idx]     = 150; // R (low)
+        data[idx + 1] = 170; // G (low)
+        data[idx + 2] = 235; // B (high) → blue excess = 2*235−150−170=150 → inv=105
+        data[idx + 3] = 255;
+      }
+    }
+    return data;
+  }
+
+  function makeBlueRowStrip(width, height, boundaries) {
+    const data = new Uint8ClampedArray(width * height * 4).fill(255);
+    for (const y of boundaries) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * 4;
+        data[idx]     = 150;
+        data[idx + 1] = 170;
+        data[idx + 2] = 235;
+        data[idx + 3] = 255;
+      }
+    }
+    return data;
+  }
+
+  it('detects ~361 LON boundaries in a synthetic full-width strip', () => {
+    // 361 boundaries evenly spaced across mapLeft..mapRight (4149 px / 360 steps)
+    const step = DEFAULT_CALIBRATION.mapWidth / 360;
+    const boundaries = Array.from({ length: 361 }, (_, i) =>
+      Math.round(DEFAULT_CALIBRATION.mapLeft + i * step));
+    const W = IMG_W, H = LON_H;
+    const data = makeBlueColumnStrip(W, H, boundaries);
+    const prof = blueExcessColumnProfile(data, W, H);
+    // Apply same margin exclusion as detectGraduations
+    const margin = DEFAULT_CALIBRATION.mapLeft;
+    for (let x = 0; x < margin; x++) prof[x] = 255;
+    for (let x = W - margin; x < W; x++) prof[x] = 255;
+    const sorted = [...prof].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.min(med - 15, 200);
+    const centers = findTickCenters(prof, threshold, 5);
+    // Expect close to 361 boundaries (within tolerance 30)
+    expect(centers.length).toBeGreaterThanOrEqual(361 - 30);
+    expect(centers.length).toBeLessThanOrEqual(361 + 30);
+  });
+
+  it('detects ~161 LAT boundaries in a synthetic full-height strip', () => {
+    // 161 boundaries: lat = 80° down to −80° using Mercator
+    const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+    const boundaries = Array.from({ length: 161 }, (_, i) => {
+      const lat = 80 - i;
+      return lat === 0
+        ? DEFAULT_CALIBRATION.equatorY
+        : Math.round(DEFAULT_CALIBRATION.equatorY - mercY(lat) * DEFAULT_CALIBRATION.mercRadius);
+    });
+    const W = LAT_W, H = IMG_H;
+    const data = makeBlueRowStrip(W, H, boundaries);
+    const prof = blueExcessRowProfile(data, W, H);
+    // Apply same margin exclusion as detectGraduations
+    for (let y = 0; y < 100; y++) prof[y] = 255;
+    for (let y = H - 100; y < H; y++) prof[y] = 255;
+    const sorted = [...prof].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.min(med - 20, 200);
+    const centers = findTickCenters(prof, threshold, 5);
+    // Expect close to 161 boundaries (within tolerance 20)
+    expect(centers.length).toBeGreaterThanOrEqual(161 - 20);
+    expect(centers.length).toBeLessThanOrEqual(161 + 20);
+  });
+});
