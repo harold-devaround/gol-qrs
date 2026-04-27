@@ -598,3 +598,144 @@ describe('buildGradGrid — grid lines through 2 graduations (one each side)', (
     expect(grid.latLines).toHaveLength(11);
   });
 });
+
+// ── 1°-resolution graduation box detection tests ─────────────────────────────
+
+const MAP_LEFT  = 148;
+const MAP_WIDTH = 4149;
+const EQUATOR_Y = 1726;
+const MERC_RADIUS = 657;
+
+describe('computeCalibration — 1°-resolution longitude (graduation boxes)', () => {
+  it('derives accurate mapLeft and mapWidth from ~361 1° boundaries spanning ±180°', () => {
+    const step = MAP_WIDTH / 360;
+    const lonTicks = Array.from({ length: 361 }, (_, i) => Math.round(MAP_LEFT + i * step));
+    const cal = computeCalibration(lonTicks, null);
+    expect(cal.mapLeft).toBeCloseTo(MAP_LEFT, 0);
+    expect(cal.mapWidth).toBeCloseTo(MAP_WIDTH, 5);
+  });
+
+  it('derives accurate mapLeft and mapWidth from ~331 1° boundaries spanning ±165°', () => {
+    // 331 boundaries starting at −165° (x≈321)
+    const step = MAP_WIDTH / 360;
+    const x165W = Math.round(MAP_LEFT + 15 * step); // x at −165°
+    const lonTicks = Array.from({ length: 331 }, (_, i) => Math.round(x165W + i * step));
+    const cal = computeCalibration(lonTicks, null);
+    expect(cal.mapLeft).toBeCloseTo(MAP_LEFT, 2);
+    expect(cal.mapWidth).toBeCloseTo(MAP_WIDTH, 5);
+  });
+
+  it('produces GPS-accurate results: boundary at −180° maps to mapLeft', () => {
+    const step = MAP_WIDTH / 360;
+    const lonTicks = Array.from({ length: 361 }, (_, i) => Math.round(MAP_LEFT + i * step));
+    const cal = computeCalibration(lonTicks, null);
+    const lonAtFirst = (lonTicks[0] - cal.mapLeft) / cal.mapWidth * 360 - 180;
+    expect(lonAtFirst).toBeCloseTo(-180, 0);
+  });
+
+  it('still handles legacy 23-tick input (15°-resolution path)', () => {
+    const lonTicks = [321, 493, 666, 839, 1012, 1184, 1357, 1530, 1703, 1876,
+      2049, 2221, 2395, 2568, 2740, 2913, 3086, 3259, 3432, 3605, 3778, 3951, 4124];
+    const cal = computeCalibration(lonTicks, null);
+    const lon165 = (lonTicks[0] - cal.mapLeft) / cal.mapWidth * 360 - 180;
+    expect(lon165).toBeCloseTo(-165, 0.5);
+  });
+});
+
+describe('computeCalibration — 1°-resolution latitude (graduation boxes)', () => {
+  const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const latTicks1deg = Array.from({ length: 161 }, (_, i) => {
+    const lat = 80 - i;
+    return lat === 0 ? EQUATOR_Y : Math.round(EQUATOR_Y - mercY(lat) * MERC_RADIUS);
+  });
+
+  it('derives equatorY close to 1726', () => {
+    const cal = computeCalibration(null, latTicks1deg);
+    expect(cal.equatorY).toBeCloseTo(EQUATOR_Y, 0);
+  });
+
+  it('derives mercRadius within 10 of 657', () => {
+    const cal = computeCalibration(null, latTicks1deg);
+    expect(cal.mercRadius).toBeCloseTo(MERC_RADIUS, -1);
+  });
+
+  it('GPS-accuracy: boundary at 75°N maps correctly', () => {
+    const cal = computeCalibration(null, latTicks1deg);
+    const y75 = latTicks1deg[5]; // index 5 = 80−5 = 75°N
+    const yMerc = (cal.equatorY - y75) / cal.mercRadius;
+    const lat75 = (2 * Math.atan(Math.exp(yMerc)) - Math.PI / 2) * 180 / Math.PI;
+    expect(lat75).toBeCloseTo(75, 0.5);
+  });
+
+  it('still handles legacy 11-tick input (15°-resolution path)', () => {
+    const legacyTicks = [391, 860, 1147, 1365, 1552, 1726, 1900, 2086, 2305, 2592, 3059];
+    const cal = computeCalibration(null, legacyTicks);
+    expect(cal.equatorY).toBe(EQUATOR_Y);
+    expect(cal.mercRadius).toBeCloseTo(MERC_RADIUS, -1);
+  });
+});
+
+describe('buildGradGrid — 1°-resolution detected ticks', () => {
+  const step = MAP_WIDTH / 360;
+  const gradLonTicks = Array.from({ length: 361 }, (_, i) => ({
+    x: Math.round(MAP_LEFT + i * step),
+    lon: -180 + i,
+  }));
+
+  const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const gradLatTicks = Array.from({ length: 161 }, (_, i) => {
+    const lat = 80 - i;
+    const y = lat === 0 ? EQUATOR_Y : Math.round(EQUATOR_Y - mercY(lat) * MERC_RADIUS);
+    return { y, lat };
+  });
+
+  it('produces exactly 23 major lon lines (−165° to +165° at 15° steps)', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { lonTicks: gradLonTicks });
+    const major = grid.lonLines.filter(l => !l.intermediate);
+    expect(major).toHaveLength(23);
+    expect(major[0].lon).toBe(-165);
+    expect(major[22].lon).toBe(165);
+  });
+
+  it('major lon lines use detected x positions (not formula)', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { lonTicks: gradLonTicks });
+    const major = grid.lonLines.filter(l => !l.intermediate);
+    // The −165° boundary is at index 15 (lon = −180 + 15 = −165)
+    expect(major[0].x).toBe(gradLonTicks[15].x);
+  });
+
+  it('produces exactly 11 major lat lines (+75° to −75° at 15° steps)', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { latTicks: gradLatTicks });
+    const major = grid.latLines.filter(l => !l.intermediate);
+    expect(major).toHaveLength(11);
+    expect(major[0].lat).toBe(75);
+    expect(major[10].lat).toBe(-75);
+  });
+
+  it('major lat lines use detected y positions (not formula)', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { latTicks: gradLatTicks });
+    const major = grid.latLines.filter(l => !l.intermediate);
+    // 75°N is at index 80−75=5 in gradLatTicks
+    expect(major[0].y).toBe(gradLatTicks[5].y);
+  });
+
+  it('intermediate lon lines use detected 1° tick positions when available', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { lonTicks: gradLonTicks }, true);
+    const inter = grid.lonLines.filter(l => l.intermediate);
+    expect(inter.length).toBeGreaterThan(0);
+    // lon=1° is in gradLonTicks at index 181 (lon = −180 + 181 = 1)
+    const line1 = inter.find(l => l.lon === 1);
+    expect(line1).toBeDefined();
+    expect(line1.x).toBe(gradLonTicks[181].x);
+  });
+
+  it('intermediate lat lines use detected 1° tick positions when available', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, { latTicks: gradLatTicks }, true);
+    const inter = grid.latLines.filter(l => l.intermediate);
+    expect(inter.length).toBeGreaterThan(0);
+    // lat=1°N is at index 79 in gradLatTicks (80−79=1)
+    const line1 = inter.find(l => l.lat === 1);
+    expect(line1).toBeDefined();
+    expect(line1.y).toBe(gradLatTicks[79].y);
+  });
+});

@@ -50,8 +50,8 @@ tests/
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
   fabric-canvas-touch.test.js← 24 tests (jsdom, hors vitest run standard)
-  gps-calibration.test.js    ← 47 tests (interpolateLatY + buildGradGrid avec ticks détectés + dual-border)
-  TOTAL                      ← 294 tests (+ 24 jsdom)
+  gps-calibration.test.js    ← 61 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution)
+  TOTAL                      ← 308 tests (+ 24 jsdom)
 ```
 
 ## Stack technique
@@ -77,7 +77,7 @@ tests/
 - **Zoom/Pan** : molette, boutons +/−, fit (F), space+drag pour pan
 - **Sauvegarde/chargement** : slots nommés en localStorage avec métadonnées + options (unité, ratio, snap, vue)
 - **Barre de statut** : coordonnées temps réel, GPS (lon/lat), zoom, outil actif
-- **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut. Calibration auto par détection des graduations 15° en bordures de la carte (mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657). Module `gps-calibration.js` : détection runtime + fallback précis. Le 0°/0° est au centre de l'image (lon=0 à x≈2222, lat=0 à y=1726).
+- **Coordonnées GPS** : affichage lon/lat dans les propriétés d'un point et dans la barre de statut. Calibration auto par détection des cases de graduation 1° (contour bleu, fond blanc) en bordures de la carte (strip y=88-102 pour lon, x=105-145 pour lat, juste avant la bordure sombre mapTop≈105 / mapLeft≈148). mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657. Module `gps-calibration.js` : détection runtime 1°-résolution + fallback précis.
 - **Lignes guide sur point** : option `showGuides` par point (checkbox dans le panneau propriétés) → croix horizontale + verticale en pointillés colorés. Affiche `lat: XX.XX°` au bord gauche du viewport et `lon: XX.XX°` au bord haut, indiquant les coordonnées GPS du point sur les graduations de la carte.
 - **Grille GPS** : dropdown "Grille" dans la barre d'action — 3 modes : Aucune / Principales (15°) / Toutes (1° avec lignes intermédiaires). Les lignes intermédiaires sont calculées depuis les graduations détectées (interpolation linéaire pour la longitude, interpolation Mercator pour la latitude), plus fines et translucides.
 - **Constructions** : médianes et médiatrices auto pour les triangles
@@ -103,7 +103,7 @@ tests/
 ## Commandes
 
 ```bash
-npm test           # npx vitest run — lance les 273 tests
+npm test           # npx vitest run — lance les 308 tests
 npm run test:watch # vitest en mode watch
 ```
 
@@ -139,3 +139,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 262 tests |
 | 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
 | 2026-04-27| Refonte détection graduations : scan 4 bordures (top+bottom lon, left+right lat), profils blueExcessColumnProfile/blueExcessRowProfile (bleu clair sur blanc), positions moyennées, buildGradGrid avec lonTicksTop/Bottom + latTicksLeft/Right. Lignes de grille en segments clippés aux limites de l'image, solides (pas de tirets), légèrement plus épaisses, semi-transparentes. Tests: blueExcessColumnProfile, blueExcessRowProfile, 2-graduations-par-ligne. 294 tests |
+| 2026-04-27| Fix emplacement détection des graduations : scan déplacé des "valeurs" (y=65-85) vers les vraies cases de graduation 1° (y=88-102, juste avant la bordure sombre mapTop≈105). minGap 50→5 pour détecter chaque case ~11.5px. computeCalibration : nouvelles branches 1°-résolution (n≥300 lon, n≥100 lat) avec fit direct mapLeft/mapWidth et fit Mercator. buildGradGrid : filtrage lon%15/lat%15 pour les lignes majeures, utilisation directe des ticks 1° pour les intermédiaires. 308 tests |
