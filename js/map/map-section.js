@@ -571,10 +571,11 @@ export function initMap(container) {
     if (!imgW || !imgH) return;
 
     // Scan-strip centre positions (mirror of gps-calibration.js constants)
-    const LON_Y_CENTER  = 95;               // top strip centre  (y=88–102)
-    const LON_YB_CENTER = imgH - 95;        // bottom strip centre
-    const LAT_X_CENTER  = 125;              // left strip centre  (x=105–145)
-    const LAT_XR_CENTER = imgW - 125;       // right strip centre
+    // Rendered near the inner map border for visual accuracy.
+    const LON_Y_CENTER  = 100;              // top strip: near mapTop≈105
+    const LON_YB_CENTER = imgH - 100;       // bottom strip centre
+    const LAT_X_CENTER  = 140;              // left strip: near mapLeft≈148
+    const LAT_XR_CENTER = imgW - 140;       // right strip centre
     const HALF = 8;                         // half-length of tick marks (screen px)
 
     ctx.save();
