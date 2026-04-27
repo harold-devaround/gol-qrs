@@ -112,6 +112,8 @@ export function initMap(container) {
     if (gradGridMode !== 'none' && gradGridData) {
       renderGradGrid(ctx, gradGridData, gradGridMode);
     }
+    // Always show raw detected tick positions in red (debugging aid)
+    renderDetectedTicks(ctx);
     for (const s of store.getVisible()) {
       renderShape(ctx, s, canvas, measurement, { labelVisibility });
     }
@@ -555,6 +557,48 @@ export function initMap(container) {
         const lx = Math.max(4, leftS.x + 4);
         ctx.fillText(lat + '°', lx, leftS.y - 2);
       }
+    }
+
+    ctx.restore();
+  }
+
+  // ──── Detected-tick overlay (debug — red marks) ───────
+
+  function renderDetectedTicks(ctx) {
+    if (!detectedGrads) return;
+    const imgW = canvas.mapImage?.naturalWidth  ?? canvas.mapImage?.width  ?? 0;
+    const imgH = canvas.mapImage?.naturalHeight ?? canvas.mapImage?.height ?? 0;
+    if (!imgW || !imgH) return;
+
+    // Scan-strip centre positions (mirror of gps-calibration.js constants)
+    const LON_Y_CENTER  = 75;               // top strip centre
+    const LON_YB_CENTER = imgH - 75;        // bottom strip centre
+    const LAT_X_CENTER  = 77;               // left strip centre
+    const LAT_XR_CENTER = imgW - 77;        // right strip centre
+    const HALF = 8;                         // half-length of tick marks (screen px)
+
+    ctx.save();
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth   = 1.5;
+
+    // Longitude ticks — vertical marks at detected x positions
+    for (const { x } of (detectedGrads.lonTicksTop ?? [])) {
+      const s = canvas.toScreen(x, LON_Y_CENTER);
+      ctx.beginPath(); ctx.moveTo(s.x, s.y - HALF); ctx.lineTo(s.x, s.y + HALF); ctx.stroke();
+    }
+    for (const { x } of (detectedGrads.lonTicksBottom ?? [])) {
+      const s = canvas.toScreen(x, LON_YB_CENTER);
+      ctx.beginPath(); ctx.moveTo(s.x, s.y - HALF); ctx.lineTo(s.x, s.y + HALF); ctx.stroke();
+    }
+
+    // Latitude ticks — horizontal marks at detected y positions
+    for (const { y } of (detectedGrads.latTicksLeft ?? [])) {
+      const s = canvas.toScreen(LAT_X_CENTER, y);
+      ctx.beginPath(); ctx.moveTo(s.x - HALF, s.y); ctx.lineTo(s.x + HALF, s.y); ctx.stroke();
+    }
+    for (const { y } of (detectedGrads.latTicksRight ?? [])) {
+      const s = canvas.toScreen(LAT_XR_CENTER, y);
+      ctx.beginPath(); ctx.moveTo(s.x - HALF, s.y); ctx.lineTo(s.x + HALF, s.y); ctx.stroke();
     }
 
     ctx.restore();
