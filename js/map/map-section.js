@@ -508,51 +508,55 @@ export function initMap(container) {
   function renderGradGrid(ctx, grid, mode) {
     if (!grid || mode === 'none') return;
     const { lonLines, latLines } = grid;
+
+    // Clip grid lines to the map image bounds so they never extend beyond the image.
+    const imgW = canvas.mapImage?.naturalWidth  ?? canvas.mapImage?.width  ?? 0;
+    const imgH = canvas.mapImage?.naturalHeight ?? canvas.mapImage?.height ?? 0;
+    if (!imgW || !imgH) return;
+
     ctx.save();
     ctx.font = '9px sans-serif';
 
-    // Longitude lines (vertical)
+    // Longitude lines (vertical) — segment from image top to image bottom
     ctx.textAlign = 'center';
-    const vRect = canvas.worldRect();
     for (const { x, lon, intermediate } of lonLines) {
       if (mode === 'major' && intermediate) continue;
-      const sx = canvas.toScreen(x, vRect.y);
-      const ex = canvas.toScreen(x, vRect.y + vRect.h);
-      ctx.setLineDash(intermediate ? [2, 6] : [4, 6]);
-      ctx.lineWidth = intermediate ? 0.5 : 1;
-      ctx.strokeStyle = intermediate ? 'rgba(255,200,0,0.25)' : 'rgba(255,200,0,0.55)';
+      const startS = canvas.toScreen(x, 0);
+      const endS   = canvas.toScreen(x, imgH);
+      ctx.lineWidth   = intermediate ? 0.7 : 1.5;
+      ctx.strokeStyle = intermediate ? 'rgba(255,200,0,0.30)' : 'rgba(255,200,0,0.65)';
       ctx.beginPath();
-      ctx.moveTo(sx.x, sx.y);
-      ctx.lineTo(ex.x, ex.y);
+      ctx.moveTo(startS.x, startS.y);
+      ctx.lineTo(endS.x, endS.y);
       ctx.stroke();
       if (!intermediate) {
         ctx.fillStyle = 'rgba(255,200,0,0.9)';
-        const ly = Math.max(12, sx.y + 4);
-        ctx.fillText(lon + '°', sx.x, ly);
+        const topS = canvas.toScreen(x, 0);
+        const ly = Math.max(12, topS.y + 4);
+        ctx.fillText(lon + '°', topS.x, ly);
       }
     }
 
-    // Latitude lines (horizontal)
+    // Latitude lines (horizontal) — segment from image left to image right
     ctx.textAlign = 'left';
     for (const { y, lat, intermediate } of latLines) {
       if (mode === 'major' && intermediate) continue;
-      const sy = canvas.toScreen(vRect.x, y);
-      const ey = canvas.toScreen(vRect.x + vRect.w, y);
-      ctx.setLineDash(intermediate ? [2, 6] : [4, 6]);
-      ctx.lineWidth = intermediate ? 0.5 : 1;
-      ctx.strokeStyle = intermediate ? 'rgba(0,200,255,0.25)' : 'rgba(0,200,255,0.55)';
+      const startS = canvas.toScreen(0, y);
+      const endS   = canvas.toScreen(imgW, y);
+      ctx.lineWidth   = intermediate ? 0.7 : 1.5;
+      ctx.strokeStyle = intermediate ? 'rgba(0,200,255,0.30)' : 'rgba(0,200,255,0.65)';
       ctx.beginPath();
-      ctx.moveTo(sy.x, sy.y);
-      ctx.lineTo(ey.x, ey.y);
+      ctx.moveTo(startS.x, startS.y);
+      ctx.lineTo(endS.x, endS.y);
       ctx.stroke();
       if (!intermediate) {
         ctx.fillStyle = 'rgba(0,200,255,0.9)';
-        const lx = Math.max(4, sy.x + 4);
-        ctx.fillText(lat + '°', lx, sy.y - 2);
+        const leftS = canvas.toScreen(0, y);
+        const lx = Math.max(4, leftS.x + 4);
+        ctx.fillText(lat + '°', lx, leftS.y - 2);
       }
     }
 
-    ctx.setLineDash([]);
     ctx.restore();
   }
 

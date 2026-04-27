@@ -159,17 +159,75 @@ export function rowProfile(data, width, height) {
 }
 
 /**
+ * Extract a column profile based on blue-channel excess, optimised for detecting
+ * light-blue tick marks on a white border background.
+ *
+ * Each pixel contributes `max(0, 2*B - R - G)` (blue excess).  The profile value
+ * for a column is `255 - maxBlueExcess` across all rows so that it can be passed
+ * directly to `findTickCenters` (low value = blue tick present).
+ *
+ * @param {Uint8ClampedArray} data   – ImageData.data (RGBA)
+ * @param {number}            width  – strip width in pixels
+ * @param {number}            height – strip height in pixels
+ * @returns {number[]} profile[x] = 255 − max blue excess across rows for column x
+ */
+export function blueExcessColumnProfile(data, width, height) {
+  const profile = new Array(width).fill(255);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+      const excess = Math.max(0, 2 * b - r - g);
+      const inv = 255 - excess;
+      if (inv < profile[x]) profile[x] = inv;
+    }
+  }
+  return profile;
+}
+
+/**
+ * Extract a row profile based on blue-channel excess, optimised for detecting
+ * light-blue tick marks on a white border background.
+ *
+ * @param {Uint8ClampedArray} data   – ImageData.data (RGBA)
+ * @param {number}            width  – strip width in pixels
+ * @param {number}            height – strip height in pixels
+ * @returns {number[]} profile[y] = 255 − max blue excess across cols for row y
+ */
+export function blueExcessRowProfile(data, width, height) {
+  const profile = new Array(height).fill(255);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+      const excess = Math.max(0, 2 * b - r - g);
+      const inv = 255 - excess;
+      if (inv < profile[y]) profile[y] = inv;
+    }
+  }
+  return profile;
+}
+
+/**
  * Detect GPS graduation tick marks from the WorldMap image.
  *
- * Reads pixel data from small border strips of the image (avoids loading the
- * full image into memory). Returns computed calibration or DEFAULT_CALIBRATION
- * if detection produces implausible results.
+ * Scans all four border strips using blue-channel excess profiles (light-blue
+ * ticks on white background are more reliably detected via chromatic difference
+ * than plain brightness). Both the top and bottom borders are scanned for
+ * longitude ticks; both the left and right borders for latitude ticks.
+ * The x/y positions from opposite sides are averaged for better accuracy.
+ *
+ * Returns computed calibration or DEFAULT_CALIBRATION if detection produces
+ * implausible results.
  *
  * @param {HTMLImageElement} img – fully loaded image element
  * @returns {object} calibration – { mapLeft, mapWidth, equatorY, mercRadius,
- *                                   lonTicks, latTicks }
- *                   lonTicks: [{x, lon}] detected longitude ticks
- *                   latTicks: [{y, lat}] detected latitude ticks
+ *                                   lonTicks, latTicks,
+ *                                   lonTicksTop, lonTicksBottom,
+ *                                   latTicksLeft, latTicksRight }
+ *   lonTicks / latTicks: [{x/y, lon/lat}] averaged (top+bottom or left+right)
+ *   lonTicksTop / lonTicksBottom: tick arrays from each border individually
+ *   latTicksLeft / latTicksRight: tick arrays from each border individually
  */
 export function detectGraduations(img) {
   const W = img.naturalWidth  || img.width;
@@ -177,64 +235,97 @@ export function detectGraduations(img) {
 
   // We can only do this if we have access to a canvas (browser environment)
   if (typeof document === 'undefined') {
-    return { ...DEFAULT_CALIBRATION, lonTicks: [], latTicks: [] };
+    return { ...DEFAULT_CALIBRATION, lonTicks: [], latTicks: [],
+             lonTicksTop: [], lonTicksBottom: [], latTicksLeft: [], latTicksRight: [] };
   }
 
   const tmpCanvas = document.createElement('canvas');
   const ctx = tmpCanvas.getContext('2d');
   if (!ctx) {
-    return { ...DEFAULT_CALIBRATION, lonTicks: [], latTicks: [] };
+    return { ...DEFAULT_CALIBRATION, lonTicks: [], latTicks: [],
+             lonTicksTop: [], lonTicksBottom: [], latTicksLeft: [], latTicksRight: [] };
   }
 
-  // ── Detect longitude ticks ───────────────────────────────────────────────
-  // Scan horizontal strip y=65–85: tick marks have brightness ~144 on a 255 background
+  // Helper: scan a horizontal strip for longitude tick centers.
+  // Uses blue-channel excess so that light-blue marks on white stand out.
+  const scanLonStrip = (y0, stripH) => {
+    tmpCanvas.width = W;
+    tmpCanvas.height = stripH;
+    ctx.clearRect(0, 0, W, stripH);
+    ctx.drawImage(img, 0, y0, W, stripH, 0, 0, W, stripH);
+    const imgData = ctx.getImageData(0, 0, W, stripH);
+    const prof = blueExcessColumnProfile(imgData.data, W, stripH);
+    // Adaptive threshold: values below median indicate blue ticks
+    const sorted = [...prof].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.min(med - 15, 200);
+    // Exclude outer frame pixels (first/last ~55 px are always border lines)
+    for (let x = 0; x < 55; x++) prof[x] = 255;
+    for (let x = W - 55; x < W; x++) prof[x] = 255;
+    return findTickCenters(prof, threshold, 50);
+  };
+
+  // Helper: scan a vertical strip for latitude tick centers.
+  const scanLatStrip = (x0, stripW) => {
+    tmpCanvas.width = stripW;
+    tmpCanvas.height = H;
+    ctx.clearRect(0, 0, stripW, H);
+    ctx.drawImage(img, x0, 0, stripW, H, 0, 0, stripW, H);
+    const imgData = ctx.getImageData(0, 0, stripW, H);
+    const prof = blueExcessRowProfile(imgData.data, stripW, H);
+    const sorted = [...prof].sort((a, b) => a - b);
+    const med = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.min(med - 20, 200);
+    // Exclude top/bottom frame areas
+    for (let y = 0; y < 60; y++) prof[y] = 255;
+    for (let y = H - 60; y < H; y++) prof[y] = 255;
+    return findTickCenters(prof, threshold, 50);
+  };
+
+  // ── Detect longitude ticks (top border y=65–85, bottom border symmetric) ──
   const LON_Y0 = 65, LON_H = 20;
-  tmpCanvas.width = W;
-  tmpCanvas.height = LON_H;
-  ctx.clearRect(0, 0, W, LON_H);
-  ctx.drawImage(img, 0, LON_Y0, W, LON_H, 0, 0, W, LON_H);
-  const lonImageData = ctx.getImageData(0, 0, W, LON_H);
-  const colBr = columnProfile(lonImageData.data, W, LON_H);
+  const lonTopX    = scanLonStrip(LON_Y0, LON_H);
+  const lonBottomX = scanLonStrip(H - LON_Y0 - LON_H, LON_H);
 
-  // Adaptive threshold: median brightness of the strip minus offset
-  const sortedBr = [...colBr].sort((a, b) => a - b);
-  const medBr = sortedBr[Math.floor(sortedBr.length / 2)];
-  const lonThreshold = Math.min(medBr - 15, 200);
-
-  // Exclude outer frame (first/last ~50 px are always dark border lines)
-  for (let x = 0; x < 55; x++) colBr[x] = 255;
-  for (let x = W - 55; x < W; x++) colBr[x] = 255;
-
-  const lonTicksX = findTickCenters(colBr, lonThreshold, 50);
-
-  // ── Detect latitude ticks ────────────────────────────────────────────────
-  // Scan vertical strip x=55–100 (left margin where tick marks are located)
+  // ── Detect latitude ticks (left border x=55–100, right border symmetric) ──
   const LAT_X0 = 55, LAT_W = 45;
-  tmpCanvas.width = LAT_W;
-  tmpCanvas.height = H;
-  ctx.clearRect(0, 0, LAT_W, H);
-  ctx.drawImage(img, LAT_X0, 0, LAT_W, H, 0, 0, LAT_W, H);
-  const latImageData = ctx.getImageData(0, 0, LAT_W, H);
-  const rowBr = rowProfile(latImageData.data, LAT_W, H);
+  const latLeftY  = scanLatStrip(LAT_X0, LAT_W);
+  const latRightY = scanLatStrip(W - LAT_X0 - LAT_W, LAT_W);
 
-  // Adaptive threshold for lat ticks
-  const sortedRowBr = [...rowBr].sort((a, b) => a - b);
-  const medRowBr = sortedRowBr[Math.floor(sortedRowBr.length / 2)];
-  const latThreshold = Math.min(medRowBr - 20, 200);
+  // ── Average opposite-border positions when both sides agree ─────────────
+  const LON_EXPECTED = 23;
+  const LON_TOL_LO = 4, LON_TOL_HI = 2; // acceptable miss count below / above expected
+  const LAT_EXPECTED = 11;
+  const LAT_TOL = 2;
+  const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
 
-  // Exclude top/bottom frame areas
-  for (let y = 0; y < 60; y++) rowBr[y] = 255;
-  for (let y = H - 60; y < H; y++) rowBr[y] = 255;
+  // Use averaged x positions for longitude ticks when both borders match
+  let lonTicksX;
+  const lonTopOk   = lonTopX.length    >= LON_EXPECTED - LON_TOL_LO && lonTopX.length    <= LON_EXPECTED + LON_TOL_HI;
+  const lonBothOk  = lonTopOk && lonBottomX.length === lonTopX.length;
+  if (lonBothOk) {
+    lonTicksX = lonTopX.map((x, i) => Math.round((x + lonBottomX[i]) / 2));
+  } else if (lonTopOk) {
+    lonTicksX = lonTopX;
+  } else {
+    lonTicksX = lonBottomX;
+  }
 
-  const latTicksY = findTickCenters(rowBr, latThreshold, 50);
+  // Use averaged y positions for latitude ticks when both borders match
+  let latTicksY;
+  const latLeftOk  = latLeftY.length   >= LAT_EXPECTED - LAT_TOL  && latLeftY.length    <= LAT_EXPECTED + LAT_TOL;
+  const latBothOk  = latLeftOk && latRightY.length === latLeftY.length;
+  if (latBothOk) {
+    latTicksY = latLeftY.map((y, i) => Math.round((y + latRightY[i]) / 2));
+  } else if (latLeftOk) {
+    latTicksY = latLeftY;
+  } else {
+    latTicksY = latRightY;
+  }
 
   // ── Validate and build calibration ──────────────────────────────────────
-  const LON_EXPECTED = 23;  // -165° to +165° at 15° intervals
-  const LAT_EXPECTED = 11;  // +75° to -75° at 15° intervals
-
-  // Only accept if we got roughly the right number of ticks
-  const lonOk = lonTicksX.length >= LON_EXPECTED - 4 && lonTicksX.length <= LON_EXPECTED + 2;
-  const latOk = latTicksY.length >= LAT_EXPECTED - 2 && latTicksY.length <= LAT_EXPECTED + 2;
+  const lonOk = lonTicksX.length >= LON_EXPECTED - LON_TOL_LO && lonTicksX.length <= LON_EXPECTED + LON_TOL_HI;
+  const latOk = latTicksY.length >= LAT_EXPECTED - LAT_TOL     && latTicksY.length <= LAT_EXPECTED + LAT_TOL;
 
   const calInput = computeCalibration(
     lonOk ? lonTicksX : null,
@@ -253,11 +344,14 @@ export function detectGraduations(img) {
   };
 
   // Build annotated tick arrays for grid overlay
-  const lonTicks = lonTicksX.map((x, i) => ({ x, lon: -165 + i * 15 }));
-  const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
-  const latTicks = latTicksY.map((y, i) => ({ y, lat: latValues[i] ?? null }));
+  const lonTicks       = lonTicksX.map((x, i)    => ({ x, lon: -165 + i * 15 }));
+  const lonTicksTop    = lonTopX.map((x, i)       => ({ x, lon: -165 + i * 15 }));
+  const lonTicksBottom = lonBottomX.map((x, i)    => ({ x, lon: -165 + i * 15 }));
+  const latTicks       = latTicksY.map((y, i)     => ({ y, lat: latValues[i] ?? null }));
+  const latTicksLeft   = latLeftY.map((y, i)      => ({ y, lat: latValues[i] ?? null }));
+  const latTicksRight  = latRightY.map((y, i)     => ({ y, lat: latValues[i] ?? null }));
 
-  return { ...calibration, lonTicks, latTicks };
+  return { ...calibration, lonTicks, latTicks, lonTicksTop, lonTicksBottom, latTicksLeft, latTicksRight };
 }
 
 /**
@@ -335,7 +429,16 @@ export function interpolateLatY(lat, ticks) {
 export function buildGradGrid(cal, detected, includeIntermediate = false) {
   // Longitude lines: every 15° from -165 to +165 (major)
   const lonLines = [];
-  if (detected?.lonTicks?.length >= 10) {
+  // Prefer averaged top+bottom tick positions when both borders were detected
+  if (detected?.lonTicksTop?.length >= 10 && detected?.lonTicksBottom?.length >= 10
+      && detected.lonTicksTop.length === detected.lonTicksBottom.length) {
+    for (let i = 0; i < detected.lonTicksTop.length; i++) {
+      const top = detected.lonTicksTop[i];
+      const bot = detected.lonTicksBottom[i];
+      const x = Math.round((top.x + bot.x) / 2);
+      lonLines.push({ x, lon: top.lon });
+    }
+  } else if (detected?.lonTicks?.length >= 10) {
     for (const t of detected.lonTicks) lonLines.push({ x: t.x, lon: t.lon });
   } else {
     for (let lon = -165; lon <= 165; lon += 15) {
@@ -346,7 +449,17 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
 
   // Latitude lines: every 15° from +75 to -75 (major)
   const latLines = [];
-  if (detected?.latTicks?.length >= 8) {
+  // Prefer averaged left+right tick positions when both borders were detected
+  if (detected?.latTicksLeft?.length >= 8 && detected?.latTicksRight?.length >= 8
+      && detected.latTicksLeft.length === detected.latTicksRight.length) {
+    const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
+    for (let i = 0; i < detected.latTicksLeft.length; i++) {
+      const left  = detected.latTicksLeft[i];
+      const right = detected.latTicksRight[i];
+      const y = Math.round((left.y + right.y) / 2);
+      if (latValues[i] !== undefined) latLines.push({ y, lat: latValues[i] });
+    }
+  } else if (detected?.latTicks?.length >= 8) {
     const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
     detected.latTicks.forEach((t, i) => {
       if (latValues[i] !== undefined) latLines.push({ y: t.y, lat: latValues[i] });
