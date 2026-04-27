@@ -136,3 +136,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-26| Fix pinch zoom : `this.el` → `upperCanvasEl` (bonne cible), `stopImmediatePropagation`, `touch-action:none` sur upper canvas, mise à jour `active` map sur tout `pointermove`, 266 tests |
 | 2026-04-26| GPS calibration par détection des graduations en bordures : `gps-calibration.js` (détection runtime + fallback précis), constantes corrigées (mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657), lignes guide sur point (showGuides), grille GPS overlay togglable (bouton Grille), 262 tests |
 | 2026-04-26| Fix détection graduations : bandes de scan corrigées (lon: y=65–85, lat: x=55–100), seuil brightness 200 (ticks CMYK ≈144), constantes DEFAULT_CALIBRATION mises à jour, 262 tests |
+| 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 286 tests |
