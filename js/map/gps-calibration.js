@@ -62,11 +62,14 @@ export function findTickCenters(profile, threshold, minGap = 20) {
 /**
  * Compute GPS calibration parameters from detected tick center positions.
  *
- * @param {number[]} lonTicksX  – x positions of 15° longitude ticks (at least 2)
- *                                Assumed to start at −165° and end at +165°
- *                                (i.e. length = 23).
- * @param {number[]} latTicksY  – y positions of 15° latitude ticks (at least 2)
- *                                Order: 75°N first, 75°S last (length = 11).
+ * Handles two resolutions:
+ *   – 1°-resolution (n ≥ 300 lon / n ≥ 100 lat): boundaries of 1° graduation boxes,
+ *     as found in the inner graduation strip just before the dark map border.
+ *   – 15°-resolution (n < 300 / n < 100): major tick marks in the outer label area
+ *     (legacy path, kept for fallback).
+ *
+ * @param {number[]} lonTicksX  – x positions of detected longitude boundaries
+ * @param {number[]} latTicksY  – y positions of detected latitude boundaries
  * @returns {object} calibration – { mapLeft, mapWidth, equatorY, mercRadius }
  */
 export function computeCalibration(lonTicksX, latTicksY) {
@@ -74,40 +77,69 @@ export function computeCalibration(lonTicksX, latTicksY) {
 
   // ── Longitude calibration ────────────────────────────────────────────────
   if (lonTicksX && lonTicksX.length >= 2) {
-    // Assign expected longitude values; first tick = −165°
     const n = lonTicksX.length;
-    // Build lon → x table using least-squares (linear)
-    const lonStep = 15;
-    const firstLon = -165;
-    // mapWidth = span_x / span_lon * 360
-    const spanX   = lonTicksX[n - 1] - lonTicksX[0];
-    const spanLon = (n - 1) * lonStep; // degrees
-    cal.mapWidth = Math.round(spanX / spanLon * 360);
-    // mapLeft = x_first - (firstLon + 180) / 360 * mapWidth
-    cal.mapLeft = Math.round(lonTicksX[0] - (firstLon + 180) / 360 * cal.mapWidth);
+    const spanX = lonTicksX[n - 1] - lonTicksX[0];
+
+    if (n >= 300) {
+      // 1°-resolution: each detected position is a 1° box boundary.
+      // Determine the longitude of the first detected boundary:
+      //   – ~361 boundaries → full ±180° coverage → firstLon = −180°
+      //   – ~331 boundaries → ±165° coverage      → firstLon = −165°
+      const firstLon = (n >= 350) ? -180 : -165;
+      const step = spanX / (n - 1);
+      cal.mapWidth = Math.round(step * 360);
+      cal.mapLeft  = Math.round(lonTicksX[0] - (firstLon + 180) / 360 * cal.mapWidth);
+    } else {
+      // 15°-resolution: first tick = −165°, ticks every 15°
+      const firstLon = -165;
+      const spanLon  = (n - 1) * 15;
+      cal.mapWidth = Math.round(spanX / spanLon * 360);
+      cal.mapLeft  = Math.round(lonTicksX[0] - (firstLon + 180) / 360 * cal.mapWidth);
+    }
   }
 
   // ── Latitude calibration (Mercator) ─────────────────────────────────────
   if (latTicksY && latTicksY.length >= 2) {
-    // lat values top→bottom: 75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75
-    const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
-    const n = latTicksY.length;
-    // Find equator (lat=0)
-    const eqIdx = latValues.indexOf(0);
-    if (eqIdx >= 0 && eqIdx < n) {
+    const mercatorY = (deg) => Math.log(Math.tan(Math.PI / 4 + deg * Math.PI / 360));
+
+    if (latTicksY.length >= 100) {
+      // 1°-resolution: find the equator boundary by proximity to the default equatorY.
+      // Boundaries are labelled lat = eqIdx − i (north-to-south, 1°/step).
+      const eqDefault = DEFAULT_CALIBRATION.equatorY;
+      const eqIdx = latTicksY.reduce((best, y, i) =>
+        Math.abs(y - eqDefault) < Math.abs(latTicksY[best] - eqDefault) ? i : best, 0);
       cal.equatorY = latTicksY[eqIdx];
-    }
-    // Compute mercRadius from all non-equator ticks
-    const rValues = [];
-    for (let i = 0; i < n; i++) {
-      const lat = latValues[i];
-      if (lat === 0) continue;
-      const yMercExpected = Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-      const R = Math.abs(cal.equatorY - latTicksY[i]) / Math.abs(yMercExpected);
-      rValues.push(R);
-    }
-    if (rValues.length > 0) {
-      cal.mercRadius = Math.round(rValues.reduce((a, b) => a + b, 0) / rValues.length);
+
+      const rVals = [];
+      for (let i = 0; i < latTicksY.length; i++) {
+        const lat = eqIdx - i;
+        if (lat === 0) continue;
+        const yM = mercatorY(lat);
+        const R  = (cal.equatorY - latTicksY[i]) / yM;
+        if (R > 400 && R < 1500) rVals.push(R);
+      }
+      if (rVals.length > 0) {
+        cal.mercRadius = Math.round(rVals.reduce((a, b) => a + b, 0) / rVals.length);
+      }
+    } else {
+      // 15°-resolution: lat values top→bottom: 75, 60, 45, 30, 15, 0, −15, …, −75
+      const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
+      const n = latTicksY.length;
+      const eqIdx = latValues.indexOf(0);
+      if (eqIdx >= 0 && eqIdx < n) {
+        cal.equatorY = latTicksY[eqIdx];
+      }
+      const rValues = [];
+      for (let i = 0; i < n; i++) {
+        const lat = latValues[i];
+        if (lat === 0) continue;
+        const yMercExpected = mercatorY(lat);
+        const R = Math.abs(cal.equatorY - latTicksY[i]) / Math.abs(yMercExpected);
+        rValues.push(R);
+      }
+      if (rValues.length > 0) {
+        cal.mercRadius = Math.round(rValues.reduce((a, b) => a + b, 0) / rValues.length);
+      }
     }
   }
 
@@ -247,7 +279,9 @@ export function detectGraduations(img) {
   }
 
   // Helper: scan a horizontal strip for longitude tick centers.
-  // Uses blue-channel excess so that light-blue marks on white stand out.
+  // Targets the 1°-graduation box area (just before the dark map border).
+  // Uses blue-channel excess to detect the blue outlines of the 1° boxes.
+  // minGap=5 detects individual ~11px-wide box boundaries (not 15° clusters).
   const scanLonStrip = (y0, stripH) => {
     tmpCanvas.width = W;
     tmpCanvas.height = stripH;
@@ -255,17 +289,20 @@ export function detectGraduations(img) {
     ctx.drawImage(img, 0, y0, W, stripH, 0, 0, W, stripH);
     const imgData = ctx.getImageData(0, 0, W, stripH);
     const prof = blueExcessColumnProfile(imgData.data, W, stripH);
-    // Adaptive threshold: values below median indicate blue ticks
+    // Adaptive threshold: values below median indicate blue outlines
     const sorted = [...prof].sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
     const threshold = Math.min(med - 15, 200);
-    // Exclude outer frame pixels (first/last ~55 px are always border lines)
-    for (let x = 0; x < 55; x++) prof[x] = 255;
-    for (let x = W - 55; x < W; x++) prof[x] = 255;
-    return findTickCenters(prof, threshold, 50);
+    // Exclude corner areas outside the graduation box strip
+    // (graduation boxes span from mapLeft to mapRight)
+    const margin = DEFAULT_CALIBRATION.mapLeft;
+    for (let x = 0; x < margin; x++) prof[x] = 255;
+    for (let x = W - margin; x < W; x++) prof[x] = 255;
+    return findTickCenters(prof, threshold, 5);
   };
 
   // Helper: scan a vertical strip for latitude tick centers.
+  // Targets the 1°-graduation box area just before the dark left/right border.
   const scanLatStrip = (x0, stripW) => {
     tmpCanvas.width = stripW;
     tmpCanvas.height = H;
@@ -276,33 +313,32 @@ export function detectGraduations(img) {
     const sorted = [...prof].sort((a, b) => a - b);
     const med = sorted[Math.floor(sorted.length / 2)];
     const threshold = Math.min(med - 20, 200);
-    // Exclude top/bottom frame areas
-    for (let y = 0; y < 60; y++) prof[y] = 255;
-    for (let y = H - 60; y < H; y++) prof[y] = 255;
-    return findTickCenters(prof, threshold, 50);
+    // Exclude corner areas (graduation boxes start after the map top/bottom margins)
+    for (let y = 0; y < 100; y++) prof[y] = 255;
+    for (let y = H - 100; y < H; y++) prof[y] = 255;
+    return findTickCenters(prof, threshold, 5);
   };
 
-  // ── Detect longitude ticks (top border y=65–85, bottom border symmetric) ──
-  const LON_Y0 = 65, LON_H = 20;
+  // ── Detect longitude graduation box boundaries (y=88–102 near mapTop≈105) ──
+  const LON_Y0 = 88, LON_H = 14;
   const lonTopX    = scanLonStrip(LON_Y0, LON_H);
   const lonBottomX = scanLonStrip(H - LON_Y0 - LON_H, LON_H);
 
-  // ── Detect latitude ticks (left border x=55–100, right border symmetric) ──
-  const LAT_X0 = 55, LAT_W = 45;
+  // ── Detect latitude graduation box boundaries (x=105–145 near mapLeft≈148) ──
+  const LAT_X0 = 105, LAT_W = 40;
   const latLeftY  = scanLatStrip(LAT_X0, LAT_W);
   const latRightY = scanLatStrip(W - LAT_X0 - LAT_W, LAT_W);
 
   // ── Average opposite-border positions when both sides agree ─────────────
-  const LON_EXPECTED = 23;
-  const LON_TOL_LO = 4, LON_TOL_HI = 2; // acceptable miss count below / above expected
-  const LAT_EXPECTED = 11;
-  const LAT_TOL = 2;
-  const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
+  // 1°-resolution: expect ~361 lon boundaries (±180°) or ~331 (±165°)
+  //                expect ~161 lat boundaries (±80°)
+  const LON_EXPECTED = 361, LON_TOL = 30;
+  const LAT_EXPECTED = 161, LAT_TOL = 20;
 
   // Use averaged x positions for longitude ticks when both borders match
   let lonTicksX;
-  const lonTopOk   = lonTopX.length    >= LON_EXPECTED - LON_TOL_LO && lonTopX.length    <= LON_EXPECTED + LON_TOL_HI;
-  const lonBothOk  = lonTopOk && lonBottomX.length === lonTopX.length;
+  const lonTopOk  = lonTopX.length  >= LON_EXPECTED - LON_TOL && lonTopX.length  <= LON_EXPECTED + LON_TOL;
+  const lonBothOk = lonTopOk && lonBottomX.length === lonTopX.length;
   if (lonBothOk) {
     lonTicksX = lonTopX.map((x, i) => Math.round((x + lonBottomX[i]) / 2));
   } else if (lonTopOk) {
@@ -313,7 +349,7 @@ export function detectGraduations(img) {
 
   // Use averaged y positions for latitude ticks when both borders match
   let latTicksY;
-  const latLeftOk  = latLeftY.length   >= LAT_EXPECTED - LAT_TOL  && latLeftY.length    <= LAT_EXPECTED + LAT_TOL;
+  const latLeftOk  = latLeftY.length  >= LAT_EXPECTED - LAT_TOL && latLeftY.length  <= LAT_EXPECTED + LAT_TOL;
   const latBothOk  = latLeftOk && latRightY.length === latLeftY.length;
   if (latBothOk) {
     latTicksY = latLeftY.map((y, i) => Math.round((y + latRightY[i]) / 2));
@@ -324,8 +360,8 @@ export function detectGraduations(img) {
   }
 
   // ── Validate and build calibration ──────────────────────────────────────
-  const lonOk = lonTicksX.length >= LON_EXPECTED - LON_TOL_LO && lonTicksX.length <= LON_EXPECTED + LON_TOL_HI;
-  const latOk = latTicksY.length >= LAT_EXPECTED - LAT_TOL     && latTicksY.length <= LAT_EXPECTED + LAT_TOL;
+  const lonOk = lonTicksX.length >= LON_EXPECTED - LON_TOL && lonTicksX.length <= LON_EXPECTED + LON_TOL;
+  const latOk = latTicksY.length >= LAT_EXPECTED - LAT_TOL && latTicksY.length <= LAT_EXPECTED + LAT_TOL;
 
   const calInput = computeCalibration(
     lonOk ? lonTicksX : null,
@@ -337,19 +373,28 @@ export function detectGraduations(img) {
   const mercRadiusOk = calInput.mercRadius > 400  && calInput.mercRadius < 1000;
 
   const calibration = {
-    mapLeft:    mapWidthOk ? calInput.mapLeft    : DEFAULT_CALIBRATION.mapLeft,
-    mapWidth:   mapWidthOk ? calInput.mapWidth   : DEFAULT_CALIBRATION.mapWidth,
-    equatorY:   latOk      ? calInput.equatorY   : DEFAULT_CALIBRATION.equatorY,
+    mapLeft:    mapWidthOk   ? calInput.mapLeft    : DEFAULT_CALIBRATION.mapLeft,
+    mapWidth:   mapWidthOk   ? calInput.mapWidth   : DEFAULT_CALIBRATION.mapWidth,
+    equatorY:   latOk        ? calInput.equatorY   : DEFAULT_CALIBRATION.equatorY,
     mercRadius: mercRadiusOk ? calInput.mercRadius : DEFAULT_CALIBRATION.mercRadius,
   };
 
-  // Build annotated tick arrays for grid overlay
-  const lonTicks       = lonTicksX.map((x, i)    => ({ x, lon: -165 + i * 15 }));
-  const lonTicksTop    = lonTopX.map((x, i)       => ({ x, lon: -165 + i * 15 }));
-  const lonTicksBottom = lonBottomX.map((x, i)    => ({ x, lon: -165 + i * 15 }));
-  const latTicks       = latTicksY.map((y, i)     => ({ y, lat: latValues[i] ?? null }));
-  const latTicksLeft   = latLeftY.map((y, i)      => ({ y, lat: latValues[i] ?? null }));
-  const latTicksRight  = latRightY.map((y, i)     => ({ y, lat: latValues[i] ?? null }));
+  // ── Annotate detected tick arrays with their degree values ───────────────
+  // Longitude: first boundary is at firstLon (-180° for ~361 detected, else -165°)
+  const lonFirstLon = (lonTicksX.length >= 350) ? -180 : -165;
+  const lonTicks       = lonTicksX.map((x, i)  => ({ x, lon: lonFirstLon + i }));
+  const lonTicksTop    = lonTopX.map((x, i)     => ({ x, lon: lonFirstLon + i }));
+  const lonTicksBottom = lonBottomX.map((x, i)  => ({ x, lon: lonFirstLon + i }));
+
+  // Latitude: find equator boundary (closest to known equatorY ≈ 1726)
+  const eqDefault = DEFAULT_CALIBRATION.equatorY;
+  const latEqIdx = latTicksY.length > 0
+    ? latTicksY.reduce((best, y, i) =>
+        Math.abs(y - eqDefault) < Math.abs(latTicksY[best] - eqDefault) ? i : best, 0)
+    : 0;
+  const latTicks       = latTicksY.map((y, i)   => ({ y, lat: latEqIdx - i }));
+  const latTicksLeft   = latLeftY.map((y, i)     => ({ y, lat: latEqIdx - i }));
+  const latTicksRight  = latRightY.map((y, i)    => ({ y, lat: latEqIdx - i }));
 
   return { ...calibration, lonTicks, latTicks, lonTicksTop, lonTicksBottom, latTicksLeft, latTicksRight };
 }
@@ -420,26 +465,39 @@ export function interpolateLatY(lat, ticks) {
  * Build a complete graduation grid from calibration parameters.
  * Returns arrays of lines to draw as overlay.
  *
+ * Handles both 1°-resolution detected ticks (from the graduation box strip) and
+ * legacy 15°-resolution ticks.  For major (15°) lines, only entries whose lon/lat
+ * is a multiple of 15° and within ±165°/±75° are kept.  For intermediate (1°)
+ * lines, directly-detected positions are preferred over interpolation.
+ *
  * @param {object} cal – { mapLeft, mapWidth, equatorY, mercRadius }
- * @param {{ lonTicks, latTicks }} detected – optional detected ticks
+ * @param {{ lonTicks, latTicks, lonTicksTop, lonTicksBottom,
+ *           latTicksLeft, latTicksRight }} detected – optional detected ticks
  * @param {boolean} includeIntermediate – when true, also add 1° intermediate lines
  *                                        tagged with { intermediate: true }
  * @returns {{ lonLines: [{x,lon,intermediate?}], latLines: [{y,lat,intermediate?}] }}
  */
 export function buildGradGrid(cal, detected, includeIntermediate = false) {
-  // Longitude lines: every 15° from -165 to +165 (major)
+  // ── Major longitude lines: every 15° from −165° to +165° ─────────────────
   const lonLines = [];
-  // Prefer averaged top+bottom tick positions when both borders were detected
+  // Prefer averaged top+bottom tick positions when both borders were detected.
+  // Filter to keep only 15°-interval entries within the ±165° range.
   if (detected?.lonTicksTop?.length >= 10 && detected?.lonTicksBottom?.length >= 10
       && detected.lonTicksTop.length === detected.lonTicksBottom.length) {
     for (let i = 0; i < detected.lonTicksTop.length; i++) {
       const top = detected.lonTicksTop[i];
+      if (top.lon == null || top.lon % 15 !== 0) continue;
+      if (top.lon < -165 || top.lon > 165) continue;
       const bot = detected.lonTicksBottom[i];
       const x = Math.round((top.x + bot.x) / 2);
       lonLines.push({ x, lon: top.lon });
     }
   } else if (detected?.lonTicks?.length >= 10) {
-    for (const t of detected.lonTicks) lonLines.push({ x: t.x, lon: t.lon });
+    for (const t of detected.lonTicks) {
+      if (t.lon == null || t.lon % 15 !== 0) continue;
+      if (t.lon < -165 || t.lon > 165) continue;
+      lonLines.push({ x: t.x, lon: t.lon });
+    }
   } else {
     for (let lon = -165; lon <= 165; lon += 15) {
       const x = Math.round(cal.mapLeft + (lon + 180) / 360 * cal.mapWidth);
@@ -447,23 +505,27 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
     }
   }
 
-  // Latitude lines: every 15° from +75 to -75 (major)
+  // ── Major latitude lines: every 15° from +75° to −75° ────────────────────
   const latLines = [];
-  // Prefer averaged left+right tick positions when both borders were detected
+  // Prefer averaged left+right tick positions when both borders were detected.
+  // Filter to keep only 15°-interval entries within the ±75° range.
   if (detected?.latTicksLeft?.length >= 8 && detected?.latTicksRight?.length >= 8
       && detected.latTicksLeft.length === detected.latTicksRight.length) {
-    const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
     for (let i = 0; i < detected.latTicksLeft.length; i++) {
       const left  = detected.latTicksLeft[i];
       const right = detected.latTicksRight[i];
+      const lat   = left.lat ?? right.lat;
+      if (lat == null || lat % 15 !== 0) continue;
+      if (lat < -75 || lat > 75) continue;
       const y = Math.round((left.y + right.y) / 2);
-      if (latValues[i] !== undefined) latLines.push({ y, lat: latValues[i] });
+      latLines.push({ y, lat });
     }
   } else if (detected?.latTicks?.length >= 8) {
-    const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
-    detected.latTicks.forEach((t, i) => {
-      if (latValues[i] !== undefined) latLines.push({ y: t.y, lat: latValues[i] });
-    });
+    for (const t of detected.latTicks) {
+      if (t.lat == null || t.lat % 15 !== 0) continue;
+      if (t.lat < -75 || t.lat > 75) continue;
+      latLines.push({ y: t.y, lat: t.lat });
+    }
   } else {
     for (let lat = 75; lat >= -75; lat -= 15) {
       let y;
@@ -477,33 +539,44 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
     }
   }
 
-  // Intermediate lines at 1° intervals (between the 15° major marks).
-  // Longitude uses linear interpolation between adjacent detected major ticks
-  // so the lines align with the actual graduation marks on the map.
-  // Latitude uses Mercator-accurate interpolation from the major tick positions.
+  // ── Intermediate lines at 1° intervals ───────────────────────────────────
+  // When 1°-resolution detected ticks are available (lonTicks.length > 50),
+  // use them directly for accurate positions.  Otherwise fall back to
+  // interpolation from the major tick positions.
   if (includeIntermediate) {
-    for (let lon = -179; lon <= 179; lon += 1) {
-      if (lon % 15 === 0) continue; // already a major line
-      let x = interpolateLonX(lon, lonLines);
-      if (x === null) {
-        // Fallback to calibration formula when outside detected tick range
-        x = Math.round(cal.mapLeft + (lon + 180) / 360 * cal.mapWidth);
+    if (detected?.lonTicks?.length > 50) {
+      for (const t of detected.lonTicks) {
+        if (t.lon == null || t.lon % 15 === 0) continue; // skip majors
+        if (t.lon < -179 || t.lon > 179) continue;
+        lonLines.push({ x: t.x, lon: t.lon, intermediate: true });
       }
-      lonLines.push({ x, lon, intermediate: true });
+    } else {
+      for (let lon = -179; lon <= 179; lon += 1) {
+        if (lon % 15 === 0) continue;
+        let x = interpolateLonX(lon, lonLines);
+        if (x === null) {
+          x = Math.round(cal.mapLeft + (lon + 180) / 360 * cal.mapWidth);
+        }
+        lonLines.push({ x, lon, intermediate: true });
+      }
     }
 
-    for (let lat = 74; lat >= -74; lat -= 1) {
-      if (lat % 15 === 0) continue; // already a major line
-      // Use the already-built major lat lines for Mercator-accurate interpolation
-      // so intermediate lines are consistent with the detected/computed major lines.
-      let y = interpolateLatY(lat, latLines);
-      if (y === null) {
-        // Fallback to global calibration constants (should not happen when
-        // latLines has ≥ 2 entries covering the requested latitude range)
-        const yMerc = lat === 0 ? 0 : Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-        y = Math.round(cal.equatorY - yMerc * cal.mercRadius);
+    if (detected?.latTicks?.length > 50) {
+      for (const t of detected.latTicks) {
+        if (t.lat == null || t.lat % 15 === 0) continue; // skip majors
+        if (t.lat < -74 || t.lat > 74) continue;
+        latLines.push({ y: t.y, lat: t.lat, intermediate: true });
       }
-      latLines.push({ y, lat, intermediate: true });
+    } else {
+      for (let lat = 74; lat >= -74; lat -= 1) {
+        if (lat % 15 === 0) continue;
+        let y = interpolateLatY(lat, latLines);
+        if (y === null) {
+          const yMerc = lat === 0 ? 0 : Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+          y = Math.round(cal.equatorY - yMerc * cal.mercRadius);
+        }
+        latLines.push({ y, lat, intermediate: true });
+      }
     }
   }
 
