@@ -261,6 +261,42 @@ export function detectGraduations(img) {
 }
 
 /**
+ * Interpolate the y-pixel position for a given latitude using adjacent major
+ * tick positions and the Mercator relationship.
+ *
+ * Given two bracketing ticks (above = higher latitude, below = lower latitude),
+ * the local Mercator scale is derived from their positions and used to
+ * accurately compute the y position of any latitude between them.
+ *
+ * @param {number} lat   – Target latitude in degrees
+ * @param {Array<{y: number, lat: number}>} ticks – Major tick positions sorted
+ *                          north-to-south (descending latitude, ascending y)
+ * @returns {number|null} Pixel y position, or null if out of tick range
+ */
+export function interpolateLatY(lat, ticks) {
+  if (!ticks || ticks.length < 2) return null;
+  const m = (deg) => Math.log(Math.tan(Math.PI / 4 + deg * Math.PI / 360));
+
+  // Find the two adjacent ticks that bracket the requested latitude.
+  // Ticks are sorted north-to-south (descending lat, ascending y).
+  let above = null, below = null;
+  for (const tick of ticks) {
+    if (tick.lat > lat) above = tick;
+    else if (tick.lat < lat) { below = tick; break; }
+    else return tick.y; // exact match
+  }
+  if (above === null || below === null) return null;
+
+  // Derive the local Mercator scale from the two bracketing ticks.
+  // y = y_above + R * (m(above.lat) - m(lat))
+  // where R = (above.y - below.y) / (m(below.lat) - m(above.lat))
+  const dm = m(below.lat) - m(above.lat); // negative (above.lat > below.lat)
+  if (Math.abs(dm) < 1e-10) return null;
+  const R = (above.y - below.y) / dm;
+  return Math.round(above.y + R * (m(above.lat) - m(lat)));
+}
+
+/**
  * Build a complete graduation grid from calibration parameters.
  * Returns arrays of lines to draw as overlay.
  *
@@ -312,8 +348,15 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
 
     for (let lat = 70; lat >= -70; lat -= 5) {
       if (lat % 15 === 0) continue; // already a major line
-      const yMerc = lat === 0 ? 0 : Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-      const y = Math.round(cal.equatorY - yMerc * cal.mercRadius);
+      // Use the already-built major lat lines for Mercator-accurate interpolation
+      // so intermediate lines are consistent with the detected/computed major lines.
+      let y = interpolateLatY(lat, latLines);
+      if (y === null) {
+        // Fallback to global calibration constants (should not happen when
+        // latLines has ≥ 2 entries covering the requested latitude range)
+        const yMerc = lat === 0 ? 0 : Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+        y = Math.round(cal.equatorY - yMerc * cal.mercRadius);
+      }
       latLines.push({ y, lat, intermediate: true });
     }
   }

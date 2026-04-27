@@ -6,6 +6,7 @@ import {
   rowProfile,
   computeCalibration,
   buildGradGrid,
+  interpolateLatY,
 } from '../js/map/gps-calibration.js';
 
 describe('DEFAULT_CALIBRATION', () => {
@@ -226,5 +227,104 @@ describe('buildGradGrid', () => {
     expect(grid.latLines.every(l => !l.intermediate)).toBe(true);
     expect(grid.lonLines).toHaveLength(23);
     expect(grid.latLines).toHaveLength(11);
+  });
+
+  it('intermediate lat lines are between their adjacent major lines (Mercator spacing)', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, null, true);
+    const major = grid.latLines.filter(l => !l.intermediate);
+    for (const inter of grid.latLines.filter(l => l.intermediate)) {
+      // Find the adjacent major lines (above = higher lat, below = lower lat)
+      const above = major.find(m => m.lat > inter.lat);
+      const below = major.find(m => m.lat < inter.lat);
+      expect(above).toBeDefined();
+      expect(below).toBeDefined();
+      // y of intermediate must be strictly between the two bracketing major lines
+      expect(inter.y).toBeGreaterThan(above.y);
+      expect(inter.y).toBeLessThan(below.y);
+    }
+  });
+
+  it('intermediate lat lines with detected ticks are consistent with major detected positions', () => {
+    // Use known detected tick positions from the actual map image
+    const latTickPositions = [387, 857, 1145, 1364, 1551, 1726, 1900, 2087, 2306, 2594, 3064];
+    const detected = {
+      lonTicks: Array.from({ length: 23 }, (_, i) => ({ x: 324 + i * 173, lon: -165 + i * 15 })),
+      latTicks: latTickPositions.map((y, i) => ({ y, lat: 75 - i * 15 })),
+    };
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, detected, true);
+    const major = grid.latLines.filter(l => !l.intermediate);
+    // Major lines should match detected positions exactly
+    latTickPositions.forEach((y, i) => {
+      expect(major[i].y).toBe(y);
+    });
+    // Each intermediate line must lie strictly between its adjacent major lines
+    for (const inter of grid.latLines.filter(l => l.intermediate)) {
+      const above = major.find(m => m.lat > inter.lat);
+      const below = major.find(m => m.lat < inter.lat);
+      expect(above).toBeDefined();
+      expect(below).toBeDefined();
+      expect(inter.y).toBeGreaterThan(above.y);
+      expect(inter.y).toBeLessThan(below.y);
+    }
+  });
+});
+
+describe('interpolateLatY', () => {
+  const ticks = [
+    { y: 387,  lat: 75 },
+    { y: 857,  lat: 60 },
+    { y: 1145, lat: 45 },
+    { y: 1364, lat: 30 },
+    { y: 1551, lat: 15 },
+    { y: 1726, lat: 0  },
+    { y: 1900, lat: -15 },
+    { y: 2087, lat: -30 },
+    { y: 2306, lat: -45 },
+    { y: 2594, lat: -60 },
+    { y: 3064, lat: -75 },
+  ];
+
+  it('returns exact tick y for known major latitudes', () => {
+    expect(interpolateLatY(75,  ticks)).toBe(387);
+    expect(interpolateLatY(0,   ticks)).toBe(1726);
+    expect(interpolateLatY(-75, ticks)).toBe(3064);
+  });
+
+  it('interpolated value lies strictly between adjacent major ticks', () => {
+    // 70° is between 75° (y=387) and 60° (y=857)
+    const y70 = interpolateLatY(70, ticks);
+    expect(y70).toBeGreaterThan(387);
+    expect(y70).toBeLessThan(857);
+
+    // 5° is between 15° (y=1551) and 0° (y=1726)
+    const y5 = interpolateLatY(5, ticks);
+    expect(y5).toBeGreaterThan(1551);
+    expect(y5).toBeLessThan(1726);
+
+    // -10° is between 0° (y=1726) and -15° (y=1900)
+    const ym10 = interpolateLatY(-10, ticks);
+    expect(ym10).toBeGreaterThan(1726);
+    expect(ym10).toBeLessThan(1900);
+  });
+
+  it('spacing is NOT equal — Mercator spacing increases near the poles', () => {
+    // In Mercator projection, the same degree interval spans MORE pixels near the poles.
+    const y75 = interpolateLatY(75, ticks); // exact match for the first tick
+    const y70 = interpolateLatY(70, ticks);
+    const y65 = interpolateLatY(65, ticks);
+    const gap70_75 = y70 - y75;  // pixels from 75°N to 70°N
+    const gap65_70 = y65 - y70;  // pixels from 70°N to 65°N
+    // Closer to pole → larger pixel gap
+    expect(gap70_75).toBeGreaterThan(gap65_70);
+  });
+
+  it('returns null when lat is out of tick range', () => {
+    expect(interpolateLatY(80, ticks)).toBeNull();  // above highest tick
+    expect(interpolateLatY(-80, ticks)).toBeNull(); // below lowest tick
+  });
+
+  it('returns null for empty or single-tick arrays', () => {
+    expect(interpolateLatY(0, [])).toBeNull();
+    expect(interpolateLatY(0, [{ y: 1726, lat: 0 }])).toBeNull();
   });
 });
