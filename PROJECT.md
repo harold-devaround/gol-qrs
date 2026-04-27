@@ -50,8 +50,8 @@ tests/
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
   fabric-canvas-touch.test.js← 24 tests (jsdom, hors vitest run standard)
-  gps-calibration.test.js    ← 69 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count)
-  TOTAL                      ← 316 tests (+ 24 jsdom)
+  gps-calibration.test.js    ← 77 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance)
+  TOTAL                      ← 324 tests (+ 24 jsdom)
 ```
 
 ## Stack technique
@@ -103,7 +103,7 @@ tests/
 ## Commandes
 
 ```bash
-npm test           # npx vitest run — lance les 308 tests
+npm test           # npx vitest run — lance les 324 tests
 npm run test:watch # vitest en mode watch
 ```
 
@@ -139,4 +139,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-27| Fix décalage image/graduations : ajout `originX:'left', originY:'top'` sur FabricImage (Fabric v7 par défaut 'center'/'center'), aligne l'image sur les coordonnées monde [0,W]×[0,H], 262 tests |
 | 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
 | 2026-04-27| Refonte détection graduations : scan 4 bordures (top+bottom lon, left+right lat), profils blueExcessColumnProfile/blueExcessRowProfile (bleu clair sur blanc), positions moyennées, buildGradGrid avec lonTicksTop/Bottom + latTicksLeft/Right. Lignes de grille en segments clippés aux limites de l'image, solides (pas de tirets), légèrement plus épaisses, semi-transparentes. Tests: blueExcessColumnProfile, blueExcessRowProfile, 2-graduations-par-ligne. 294 tests |
-| 2026-04-27| Fix détection graduations toutes bordures : LON_Y0=68/LON_H=40 (y=68-108, dépasse mapTop≈105), LAT_X0=105/LAT_W=47 (x=105-152, dépasse mapLeft=148, right start=W-152=mapRight=4297). Rendu debug ticks proche bord intérieur (LON_Y_CENTER=100, LAT_X_CENTER=140). Export constantes. 8 nouveaux tests (couverture scan + compte synthétique 361 lon / 161 lat). 316 tests |
+| 2026-04-27| Fix zone détection graduations : LON_Y0=90/LON_H=18 (y=90-108, ± mapTop≈105), LAT_X0=120/LAT_W=32 (x=120-152), corner exclusion LAT 100→5 px. LAT_EXPECTED 161→181 (±90°). Variance check sur R-values dans computeCalibration (évite corruption mercRadius par ticks linéaires). mercRadiusOk resserré 400-1000→550-760. Export LON/LAT_EXPECTED. 8 nouveaux tests (+4 counts + 2 linear-tick + 2 symmetric top/bottom + left/right). 324 tests |

@@ -32,11 +32,21 @@ export const DEFAULT_CALIBRATION = {
  *   LAT strips (left/right): x = LAT_X0 … LAT_X0+LAT_W, crosses mapLeft=148
  *     right strip x0 = W − LAT_X0 − LAT_W = W − 152 = mapRight (W=4449)
  */
-export const LON_Y0 = 68;   // top strip start row
-export const LON_H  = 40;   // top strip height (ends at y≈108, past mapTop≈105)
-export const LAT_X0 = 105;  // left strip start column
-export const LAT_W  = 47;   // left strip width (ends at x≈152, past mapLeft=148;
+export const LON_Y0 = 90;   // top strip start row (closer to mapTop≈105)
+export const LON_H  = 18;   // top strip height (ends at y≈108, past mapTop≈105)
+export const LAT_X0 = 120;  // left strip start column (closer to mapLeft=148)
+export const LAT_W  = 32;   // left strip width (ends at x≈152, past mapLeft=148;
                              //   right strip start = W−152 = mapRight=4297 when W=4449)
+
+/**
+ * Expected graduation counts and tolerances for detection validation.
+ *   LON: 361 boundaries from −180° to +180° (inclusive)
+ *   LAT: 181 boundaries from −90° to +90° (inclusive)
+ */
+export const LON_EXPECTED = 361;
+export const LON_TOL      = 30;
+export const LAT_EXPECTED = 181;
+export const LAT_TOL      = 20;
 
 // ---------------------------------------------------------------------------
 // Pure computation helpers (unit-testable without DOM)
@@ -132,7 +142,12 @@ export function computeCalibration(lonTicksX, latTicksY) {
         if (R > 400 && R < 1500) rVals.push(R);
       }
       if (rVals.length > 0) {
-        cal.mercRadius = Math.round(rVals.reduce((a, b) => a + b, 0) / rVals.length);
+        const mean = rVals.reduce((a, b) => a + b, 0) / rVals.length;
+        // Only accept Mercator-consistent tick sets (low relative stddev).
+        // Linearly-spaced ticks produce widely varying R values and are rejected.
+        const isConsistent = rVals.length < 5 ||
+          Math.sqrt(rVals.reduce((s, r) => s + (r - mean) ** 2, 0) / rVals.length) / mean < 0.15;
+        if (isConsistent) cal.mercRadius = Math.round(mean);
       }
     } else {
       // 15°-resolution: lat values top→bottom: 75, 60, 45, 30, 15, 0, −15, …, −75
@@ -327,24 +342,22 @@ export function detectGraduations(img) {
     const med = sorted[Math.floor(sorted.length / 2)];
     const threshold = Math.min(med - 20, 200);
     // Exclude corner areas (graduation boxes start after the map top/bottom margins)
-    for (let y = 0; y < 100; y++) prof[y] = 255;
-    for (let y = H - 100; y < H; y++) prof[y] = 255;
+    for (let y = 0; y < 5; y++) prof[y] = 255;
+    for (let y = H - 5; y < H; y++) prof[y] = 255;
     return findTickCenters(prof, threshold, 5);
   };
 
-  // ── Detect longitude graduation box boundaries (y=68–108 near mapTop≈105) ──
+  // ── Detect longitude graduation box boundaries (y=90–108 near mapTop≈105) ──
   const lonTopX    = scanLonStrip(LON_Y0, LON_H);
   const lonBottomX = scanLonStrip(H - LON_Y0 - LON_H, LON_H);
 
-  // ── Detect latitude graduation box boundaries (x=105–152 near mapLeft≈148) ──
+  // ── Detect latitude graduation box boundaries (x=120–152 near mapLeft≈148) ──
   const latLeftY  = scanLatStrip(LAT_X0, LAT_W);
   const latRightY = scanLatStrip(W - LAT_X0 - LAT_W, LAT_W);
 
   // ── Average opposite-border positions when both sides agree ─────────────
   // 1°-resolution: expect ~361 lon boundaries (±180°) or ~331 (±165°)
-  //                expect ~161 lat boundaries (±80°)
-  const LON_EXPECTED = 361, LON_TOL = 30;
-  const LAT_EXPECTED = 161, LAT_TOL = 20;
+  //                expect ~181 lat boundaries (±90°)
 
   // Use averaged x positions for longitude ticks when both borders match
   let lonTicksX;
@@ -381,7 +394,7 @@ export function detectGraduations(img) {
 
   // Sanity checks on derived values
   const mapWidthOk   = calInput.mapWidth   > 3000 && calInput.mapWidth   < 6000;
-  const mercRadiusOk = calInput.mercRadius > 400  && calInput.mercRadius < 1000;
+  const mercRadiusOk = calInput.mercRadius > 550  && calInput.mercRadius < 760;
 
   const calibration = {
     mapLeft:    mapWidthOk   ? calInput.mapLeft    : DEFAULT_CALIBRATION.mapLeft,
