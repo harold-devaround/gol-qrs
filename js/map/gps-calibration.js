@@ -6,8 +6,9 @@
  * calibration parameters used for lon/lat conversion.
  *
  * Image: 2019_WorldMap_MHF_1.2x1.6m.jpg (4449×3456 px, CMYK JPEG)
- *   mapLeft=148, mapWidth=4149, mapTop≈105, equatorY=1726, mercRadius=657
- *   Graduation boxes: top/bottom strip y=68–108 (LON), left/right strip x=105–152 (LAT)
+ *   mapLeft=148, mapWidth=4149, equatorY=1726, mercRadius=657
+ *   Graduation boxes: top strip y=107–116, bottom y=3336–3344 (LON),
+ *                     left strip x=143–151, right x=4293–4301 (LAT)
  */
 
 /**
@@ -27,16 +28,20 @@ export const DEFAULT_CALIBRATION = {
 /**
  * Scan-strip constants for graduation box detection.
  *
- * The 1°-graduation boxes are adjacent to the inner map borders:
- *   LON strips (top/bottom): y = LON_Y0 … LON_Y0+LON_H, crosses mapTop≈105
- *   LAT strips (left/right): x = LAT_X0 … LAT_X0+LAT_W, crosses mapLeft=148
- *     right strip x0 = W − LAT_X0 − LAT_W = W − 152 = mapRight (W=4449)
+ * Outer/inner border coordinates (px):
+ *   top:    outer y=107, inner y=116
+ *   bottom: inner y=3336, outer y=3344
+ *   left:   outer x=143, inner x=151
+ *   right:  inner x=4293, outer x=4301
  */
-export const LON_Y0 = 90;   // top strip start row (closer to mapTop≈105)
-export const LON_H  = 18;   // top strip height (ends at y≈108, past mapTop≈105)
-export const LAT_X0 = 120;  // left strip start column (closer to mapLeft=148)
-export const LAT_W  = 32;   // left strip width (ends at x≈152, past mapLeft=148;
-                             //   right strip start = W−152 = mapRight=4297 when W=4449)
+export const LON_Y0       = 107;   // top strip outer y
+export const LON_H        = 9;     // top strip height (107→116)
+export const LON_Y0_BOT   = 3336;  // bottom strip inner y
+export const LON_H_BOT    = 8;     // bottom strip height (3336→3344)
+export const LAT_X0       = 143;   // left strip outer x
+export const LAT_W        = 8;     // left strip width (143→151)
+export const LAT_X0_RIGHT = 4293;  // right strip inner x
+export const LAT_W_RIGHT  = 8;     // right strip width (4293→4301)
 
 /**
  * Expected graduation counts and tolerances for detection validation.
@@ -347,13 +352,13 @@ export function detectGraduations(img) {
     return findTickCenters(prof, threshold, 5);
   };
 
-  // ── Detect longitude graduation box boundaries (y=90–108 near mapTop≈105) ──
+  // ── Detect longitude graduation box boundaries ───────────────────────────
   const lonTopX    = scanLonStrip(LON_Y0, LON_H);
-  const lonBottomX = scanLonStrip(H - LON_Y0 - LON_H, LON_H);
+  const lonBottomX = scanLonStrip(LON_Y0_BOT, LON_H_BOT);
 
-  // ── Detect latitude graduation box boundaries (x=120–152 near mapLeft≈148) ──
+  // ── Detect latitude graduation box boundaries ────────────────────────────
   const latLeftY  = scanLatStrip(LAT_X0, LAT_W);
-  const latRightY = scanLatStrip(W - LAT_X0 - LAT_W, LAT_W);
+  const latRightY = scanLatStrip(LAT_X0_RIGHT, LAT_W_RIGHT);
 
   // ── Average opposite-border positions when both sides agree ─────────────
   // 1°-resolution: expect ~361 lon boundaries (±180°) or ~331 (±165°)
