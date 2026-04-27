@@ -160,6 +160,8 @@ export class MapCanvas extends EventEmitter {
         const fImg = new fabric.FabricImage(img, {
           left: 0,
           top: 0,
+          originX: 'left',
+          originY: 'top',
           selectable: false,
           evented: false,
           objectCaching: false,
