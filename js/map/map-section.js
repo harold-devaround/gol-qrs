@@ -50,11 +50,10 @@ export function initMap(container) {
   let calMode = 'height'; // 'height' | 'width' | 'avg'
 
   // Graduation grid state
-  let showGradGrid = false;
-  let gradGridData  = null; // { lonLines, latLines } from buildGradGrid
-  let detectedGrads = null; // raw detection output from detectGraduations
+  let gradGridMode  = 'none'; // 'none' | 'major' | 'all'
+  let gradGridData  = null; // { lonLines, latLines } from buildGradGrid (includes intermediates)
 
-  // Per-type label visibility (all visible by default)
+  let detectedGrads = null; // raw detection output from detectGraduations
   const labelVisibility = {
     point: true, segment: true, line: true, circle: true,
     triangle: true, angle: true, median: true, bisector: true,
@@ -110,8 +109,8 @@ export function initMap(container) {
   // Render shapes via canvas callback
   canvas.onRenderShapes = (ctx) => {
     // Graduation grid overlay
-    if (showGradGrid && gradGridData) {
-      renderGradGrid(ctx, gradGridData);
+    if (gradGridMode !== 'none' && gradGridData) {
+      renderGradGrid(ctx, gradGridData, gradGridMode);
     }
     for (const s of store.getVisible()) {
       renderShape(ctx, s, canvas, measurement, { labelVisibility });
@@ -182,10 +181,26 @@ export function initMap(container) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
           <span>Snap</span>
         </button>
-        <button class="abar-btn abar-toggle ${showGradGrid ? 'active' : ''}" id="btn-grad-grid" title="Afficher la grille des graduations GPS">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-          <span>Grille</span>
-        </button>
+        <div class="abar-dropdown" id="grad-grid-dropdown">
+          <button class="abar-btn abar-toggle ${gradGridMode !== 'none' ? 'active' : ''}" id="btn-grad-grid" title="Afficher la grille des graduations GPS">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            <span>${gradGridMode === 'none' ? 'Grille' : gradGridMode === 'major' ? 'Grille 15°' : 'Grille 5°'}</span>
+          </button>
+          <div class="abar-dropdown-menu" id="grad-grid-menu">
+            <label class="abar-dropdown-item">
+              <input type="radio" name="grad-grid-mode" value="none" ${gradGridMode === 'none' ? 'checked' : ''}>
+              <span>Aucune</span>
+            </label>
+            <label class="abar-dropdown-item">
+              <input type="radio" name="grad-grid-mode" value="major" ${gradGridMode === 'major' ? 'checked' : ''}>
+              <span>Principales (15°)</span>
+            </label>
+            <label class="abar-dropdown-item">
+              <input type="radio" name="grad-grid-mode" value="all" ${gradGridMode === 'all' ? 'checked' : ''}>
+              <span>Toutes (5°)</span>
+            </label>
+          </div>
+        </div>
         <div class="abar-dropdown" id="label-vis-dropdown">
           <button class="abar-btn abar-toggle" id="btn-label-vis" title="Visibilité des labels par type">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -254,14 +269,27 @@ export function initMap(container) {
     bar.querySelector('#btn-zout').onclick = () => canvas.zoomAt(canvas.el.clientWidth / 2, canvas.el.clientHeight / 2, 1 / 1.3);
     bar.querySelector('#btn-fit').onclick = () => canvas.fitToView();
     bar.querySelector('#btn-snap').onclick = () => { canvas.snapEnabled = !canvas.snapEnabled; updateActionBar(); };
-    bar.querySelector('#btn-grad-grid').onclick = () => {
-      showGradGrid = !showGradGrid;
-      if (showGradGrid && !gradGridData) {
-        gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads);
-      }
-      canvas.requestRender();
-      updateActionBar();
-    };
+    // Graduation grid dropdown
+    const gradBtn = bar.querySelector('#btn-grad-grid');
+    const gradMenu = bar.querySelector('#grad-grid-menu');
+    if (gradBtn && gradMenu) {
+      gradBtn.onclick = (e) => {
+        e.stopPropagation();
+        gradMenu.classList.toggle('open');
+      };
+      gradMenu.querySelectorAll('[name="grad-grid-mode"]').forEach(radio => {
+        radio.onchange = () => {
+          gradGridMode = radio.value;
+          canvas.requestRender();
+          updateActionBar();
+        };
+      });
+      document.addEventListener('click', (e) => {
+        if (!bar.querySelector('#grad-grid-dropdown')?.contains(e.target)) {
+          gradMenu.classList.remove('open');
+        }
+      });
+    }
     bar.querySelector('#unit-switch').onclick = () => { measurement.toggleMode(); };
     bar.querySelector('#btn-clear').onclick = () => {
       if (store.getAll().length === 0) return;
@@ -456,45 +484,51 @@ export function initMap(container) {
 
   // ──── Graduation grid rendering ───────────────────────
 
-  function renderGradGrid(ctx, grid) {
-    if (!grid) return;
+  function renderGradGrid(ctx, grid, mode) {
+    if (!grid || mode === 'none') return;
     const { lonLines, latLines } = grid;
     ctx.save();
-    ctx.setLineDash([4, 6]);
-    ctx.lineWidth = 1;
+    ctx.font = '9px sans-serif';
 
     // Longitude lines (vertical)
-    ctx.strokeStyle = 'rgba(255,200,0,0.55)';
-    ctx.fillStyle   = 'rgba(255,200,0,0.9)';
-    ctx.font        = '9px sans-serif';
-    ctx.textAlign   = 'center';
+    ctx.textAlign = 'center';
     const vRect = canvas.worldRect();
-    for (const { x, lon } of lonLines) {
+    for (const { x, lon, intermediate } of lonLines) {
+      if (mode === 'major' && intermediate) continue;
       const sx = canvas.toScreen(x, vRect.y);
       const ex = canvas.toScreen(x, vRect.y + vRect.h);
+      ctx.setLineDash(intermediate ? [2, 6] : [4, 6]);
+      ctx.lineWidth = intermediate ? 0.5 : 1;
+      ctx.strokeStyle = intermediate ? 'rgba(255,200,0,0.25)' : 'rgba(255,200,0,0.55)';
       ctx.beginPath();
       ctx.moveTo(sx.x, sx.y);
       ctx.lineTo(ex.x, ex.y);
       ctx.stroke();
-      // Label near top
-      const ly = Math.max(12, sx.y + 4);
-      ctx.fillText(lon + '°', sx.x, ly);
+      if (!intermediate) {
+        ctx.fillStyle = 'rgba(255,200,0,0.9)';
+        const ly = Math.max(12, sx.y + 4);
+        ctx.fillText(lon + '°', sx.x, ly);
+      }
     }
 
     // Latitude lines (horizontal)
-    ctx.strokeStyle = 'rgba(0,200,255,0.55)';
-    ctx.fillStyle   = 'rgba(0,200,255,0.9)';
-    ctx.textAlign   = 'left';
-    for (const { y, lat } of latLines) {
+    ctx.textAlign = 'left';
+    for (const { y, lat, intermediate } of latLines) {
+      if (mode === 'major' && intermediate) continue;
       const sy = canvas.toScreen(vRect.x, y);
       const ey = canvas.toScreen(vRect.x + vRect.w, y);
+      ctx.setLineDash(intermediate ? [2, 6] : [4, 6]);
+      ctx.lineWidth = intermediate ? 0.5 : 1;
+      ctx.strokeStyle = intermediate ? 'rgba(0,200,255,0.25)' : 'rgba(0,200,255,0.55)';
       ctx.beginPath();
       ctx.moveTo(sy.x, sy.y);
       ctx.lineTo(ey.x, ey.y);
       ctx.stroke();
-      // Label near left
-      const lx = Math.max(4, sy.x + 4);
-      ctx.fillText(lat + '°', lx, sy.y - 2);
+      if (!intermediate) {
+        ctx.fillStyle = 'rgba(0,200,255,0.9)';
+        const lx = Math.max(4, sy.x + 4);
+        ctx.fillText(lat + '°', lx, sy.y - 2);
+      }
     }
 
     ctx.setLineDash([]);
@@ -729,10 +763,10 @@ export function initMap(container) {
     try {
       detectedGrads = detectGraduations(img);
       measurement.setGPSCalibration(detectedGrads);
-      gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads);
+      gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads, true);
     } catch (_) {
       // Detection failed — leave default calibration in place
-      gradGridData = buildGradGrid(measurement.gpsCalibration, null);
+      gradGridData = buildGradGrid(measurement.gpsCalibration, null, true);
     }
 
     // Restore saved view state or keep fitToView default

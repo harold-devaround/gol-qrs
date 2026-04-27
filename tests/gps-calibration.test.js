@@ -195,4 +195,36 @@ describe('buildGradGrid', () => {
     expect(grid.lonLines[0].x).toBe(324);
     expect(grid.latLines[0].y).toBe(387);
   });
+
+  it('includes intermediate 5° lines when includeIntermediate is true', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, null, true);
+    // Major lines still present (23 lon + 11 lat)
+    const majorLon = grid.lonLines.filter(l => !l.intermediate);
+    const majorLat = grid.latLines.filter(l => !l.intermediate);
+    expect(majorLon).toHaveLength(23);
+    expect(majorLat).toHaveLength(11);
+    // Intermediate lines added
+    const intermLon = grid.lonLines.filter(l => l.intermediate);
+    const intermLat = grid.latLines.filter(l => l.intermediate);
+    expect(intermLon.length).toBeGreaterThan(0);
+    expect(intermLat.length).toBeGreaterThan(0);
+    // Intermediate lon lines are at 5° steps, not multiples of 15
+    for (const l of intermLon) {
+      expect(l.lon % 15 !== 0).toBe(true);
+      expect(Math.abs(l.lon % 5)).toBe(0);
+    }
+    // Intermediate lat lines are at 5° steps, not multiples of 15
+    for (const l of intermLat) {
+      expect(l.lat % 15 !== 0).toBe(true);
+      expect(Math.abs(l.lat % 5)).toBe(0);
+    }
+  });
+
+  it('does not include intermediate lines by default', () => {
+    const grid = buildGradGrid(DEFAULT_CALIBRATION, null);
+    expect(grid.lonLines.every(l => !l.intermediate)).toBe(true);
+    expect(grid.latLines.every(l => !l.intermediate)).toBe(true);
+    expect(grid.lonLines).toHaveLength(23);
+    expect(grid.latLines).toHaveLength(11);
+  });
 });

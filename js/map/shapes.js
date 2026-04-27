@@ -123,7 +123,7 @@ function drawLabel(ctx, text, sx, sy, color, offsetX = 0, offsetY = -12) {
 const RENDERERS = {
   point(ctx, s, vp, m) {
     const p = vp.toScreen(s.x, s.y);
-    // Guide lines (crosshair) through the point
+    // Guide lines (crosshair) through the point, extending to viewport edges
     if (s.showGuides) {
       const rect = vp.worldRect();
       const left   = vp.toScreen(rect.x, s.y);
@@ -139,6 +139,33 @@ const RENDERERS = {
       ctx.moveTo(top.x,  top.y);   ctx.lineTo(bottom.x, bottom.y);
       ctx.stroke();
       ctx.setLineDash([]);
+      // Lat/lon labels at viewport edges (requires measurement with GPS calibration)
+      if (m?.toGPS) {
+        const gps = m.toGPS(s.x, s.y);
+        const latText = `lat: ${gps.lat.toFixed(2)}°`;
+        const lonText = `lon: ${gps.lon.toFixed(2)}°`;
+        ctx.font = 'bold 10px "Segoe UI", system-ui, sans-serif';
+        // Latitude label — near left edge of viewport
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const latLabelX = Math.max(4, left.x + 4);
+        const latLabelY = left.y;
+        const latW = ctx.measureText(latText).width;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fillRect(latLabelX - 2, latLabelY - 8, latW + 4, 16);
+        ctx.fillStyle = s.color;
+        ctx.fillText(latText, latLabelX, latLabelY);
+        // Longitude label — near top edge of viewport
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const lonLabelX = top.x;
+        const lonLabelY = Math.max(4, top.y + 4);
+        const lonW = ctx.measureText(lonText).width;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fillRect(lonLabelX - lonW / 2 - 2, lonLabelY - 2, lonW + 4, 16);
+        ctx.fillStyle = s.color;
+        ctx.fillText(lonText, lonLabelX, lonLabelY);
+      }
       ctx.restore();
     }
     if (s.selected) selectionGlow(ctx, p.x, p.y, 5);

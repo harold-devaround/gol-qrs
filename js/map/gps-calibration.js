@@ -266,10 +266,12 @@ export function detectGraduations(img) {
  *
  * @param {object} cal – { mapLeft, mapWidth, equatorY, mercRadius }
  * @param {{ lonTicks, latTicks }} detected – optional detected ticks
- * @returns {{ lonLines: [{x,lon}], latLines: [{y,lat}] }}
+ * @param {boolean} includeIntermediate – when true, also add 5° intermediate lines
+ *                                        tagged with { intermediate: true }
+ * @returns {{ lonLines: [{x,lon,intermediate?}], latLines: [{y,lat,intermediate?}] }}
  */
-export function buildGradGrid(cal, detected) {
-  // Longitude lines: every 15° from -180 to +180
+export function buildGradGrid(cal, detected, includeIntermediate = false) {
+  // Longitude lines: every 15° from -165 to +165 (major)
   const lonLines = [];
   if (detected?.lonTicks?.length >= 10) {
     for (const t of detected.lonTicks) lonLines.push({ x: t.x, lon: t.lon });
@@ -280,7 +282,7 @@ export function buildGradGrid(cal, detected) {
     }
   }
 
-  // Latitude lines: every 15° from +75 to -75
+  // Latitude lines: every 15° from +75 to -75 (major)
   const latLines = [];
   if (detected?.latTicks?.length >= 8) {
     const latValues = [75, 60, 45, 30, 15, 0, -15, -30, -45, -60, -75];
@@ -297,6 +299,22 @@ export function buildGradGrid(cal, detected) {
         y = Math.round(cal.equatorY - yMerc * cal.mercRadius);
       }
       latLines.push({ y, lat });
+    }
+  }
+
+  // Intermediate lines at 5° intervals (between the 15° major marks)
+  if (includeIntermediate) {
+    for (let lon = -175; lon <= 175; lon += 5) {
+      if (lon % 15 === 0) continue; // already a major line
+      const x = Math.round(cal.mapLeft + (lon + 180) / 360 * cal.mapWidth);
+      lonLines.push({ x, lon, intermediate: true });
+    }
+
+    for (let lat = 70; lat >= -70; lat -= 5) {
+      if (lat % 15 === 0) continue; // already a major line
+      const yMerc = lat === 0 ? 0 : Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+      const y = Math.round(cal.equatorY - yMerc * cal.mercRadius);
+      latLines.push({ y, lat, intermediate: true });
     }
   }
 

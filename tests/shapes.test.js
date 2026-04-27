@@ -332,6 +332,56 @@ describe('renderShape', () => {
     // If it tried to render, it would throw because ctx is null
     expect(() => renderShape(null, p, {}, {})).not.toThrow();
   });
+
+  it('renders guide lines with lat/lon labels when showGuides is true', () => {
+    syncNextId([]);
+    const m = new Measurement();
+    const p = createPoint(2222, 1726, { showGuides: true, color: '#ff0000' });
+    const texts = [];
+    const ctx = {
+      beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, arc: () => {},
+      fill: () => {}, stroke: () => {}, fillRect: () => {},
+      strokeStyle: '', fillStyle: '', lineWidth: 1,
+      setLineDash: () => {},
+      font: '', textAlign: '', textBaseline: '',
+      save: () => {}, restore: () => {},
+      measureText: () => ({ width: 40 }),
+      fillText: (text) => texts.push(String(text)),
+    };
+    const vp = {
+      toScreen: (wx, wy) => ({ x: wx * 0.1, y: wy * 0.1 }),
+      worldRect: () => ({ x: 0, y: 0, w: 8000, h: 6000 }),
+      zoom: 0.1,
+    };
+    renderShape(ctx, p, vp, m);
+    expect(texts.some(t => t.includes('lat:'))).toBe(true);
+    expect(texts.some(t => t.includes('lon:'))).toBe(true);
+  });
+
+  it('does not add lat/lon labels when showGuides is false', () => {
+    syncNextId([]);
+    const m = new Measurement();
+    const p = createPoint(2222, 1726, { showGuides: false, color: '#ff0000' });
+    const texts = [];
+    const ctx = {
+      beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, arc: () => {},
+      fill: () => {}, stroke: () => {}, fillRect: () => {},
+      strokeStyle: '', fillStyle: '', lineWidth: 1,
+      setLineDash: () => {},
+      font: '', textAlign: '', textBaseline: '',
+      save: () => {}, restore: () => {},
+      measureText: () => ({ width: 40 }),
+      fillText: (text) => texts.push(String(text)),
+    };
+    const vp = {
+      toScreen: (wx, wy) => ({ x: wx * 0.1, y: wy * 0.1 }),
+      worldRect: () => ({ x: 0, y: 0, w: 8000, h: 6000 }),
+      zoom: 0.1,
+    };
+    renderShape(ctx, p, vp, m);
+    expect(texts.some(t => t.includes('lat:'))).toBe(false);
+    expect(texts.some(t => t.includes('lon:'))).toBe(false);
+  });
 });
 
 /* ── syncNextId ───────────────────────────────────────── */
