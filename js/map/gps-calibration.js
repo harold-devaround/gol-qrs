@@ -37,7 +37,7 @@ export const DEFAULT_CALIBRATION = {
 export const LON_Y0       = 107;   // top strip outer y
 export const LON_H        = 9;     // top strip height (107→116)
 export const LON_Y0_BOT   = 3336;  // bottom strip inner y
-export const LON_H_BOT    = 8;     // bottom strip height (3336→3344)
+export const LON_H_BOT    = 9;     // bottom strip height (3336→3344, inclusive)
 export const LAT_X0       = 143;   // left strip outer x
 export const LAT_W        = 8;     // left strip width (143→151)
 export const LAT_X0_RIGHT = 4293;  // right strip inner x
@@ -73,17 +73,30 @@ export function findTickCenters(profile, threshold, minGap = 20) {
   }
   if (dark.length === 0) return [];
 
+  // Compute the weighted centroid of a dark group [from, to].
+  // Weights = (threshold − profile[i]) so the darkest (most blue) pixel
+  // pulls the center toward itself, accounting for mark thickness.
+  const groupCenter = (from, to) => {
+    let totalW = 0, sumW = 0;
+    for (let i = from; i <= to; i++) {
+      const w = threshold - profile[i];
+      sumW  += i * w;
+      totalW += w;
+    }
+    return totalW > 0 ? Math.round(sumW / totalW) : Math.round((from + to) / 2);
+  };
+
   const centers = [];
   let start = dark[0];
   let prev  = dark[0];
   for (let k = 1; k < dark.length; k++) {
     if (dark[k] > prev + minGap) {
-      centers.push(Math.round((start + prev) / 2));
+      centers.push(groupCenter(start, prev));
       start = dark[k];
     }
     prev = dark[k];
   }
-  centers.push(Math.round((start + prev) / 2));
+  centers.push(groupCenter(start, prev));
   return centers;
 }
 
@@ -488,6 +501,68 @@ export function interpolateLatY(lat, ticks) {
   if (Math.abs(dm) < 1e-10) return null;
   const R = (above.y - below.y) / dm;
   return Math.round(above.y + R * (m(above.lat) - m(lat)));
+}
+
+/**
+ * Inverse interpolation: given a pixel x position, return the longitude in
+ * degrees using the detected tick positions and linear interpolation.
+ *
+ * @param {number} x – Target pixel x position
+ * @param {Array<{x: number, lon: number, intermediate?: boolean}>} lonTicks
+ * @returns {number|null} Longitude in degrees, or null if out of tick range
+ */
+export function interpolateLonFromX(x, lonTicks) {
+  if (!lonTicks || lonTicks.length < 2) return null;
+  const sorted = lonTicks.filter(t => !t.intermediate).sort((a, b) => a.x - b.x);
+  if (sorted.length < 2) return null;
+  let left = null, right = null;
+  for (const tick of sorted) {
+    if (tick.x <= x) left = tick;
+    else { right = tick; break; }
+  }
+  if (left === null) return null;
+  if (left.x === x) return left.lon; // exact match (handles last tick)
+  if (right === null) return null;   // x is beyond the last tick
+  const t = (x - left.x) / (right.x - left.x);
+  return left.lon + t * (right.lon - left.lon);
+}
+
+/**
+ * Inverse interpolation: given a pixel y position, return the latitude in
+ * degrees using the detected tick positions and local Mercator scaling derived
+ * from each adjacent tick pair.
+ *
+ * @param {number} y – Target pixel y position
+ * @param {Array<{y: number, lat: number, intermediate?: boolean}>} latTicks
+ * @returns {number|null} Latitude in degrees, or null if out of tick range
+ */
+export function interpolateLatFromY(y, latTicks) {
+  if (!latTicks || latTicks.length < 2) return null;
+  const sorted = latTicks.filter(t => !t.intermediate).sort((a, b) => a.y - b.y);
+  if (sorted.length < 2) return null;
+
+  const m    = (deg) => Math.log(Math.tan(Math.PI / 4 + deg * Math.PI / 360));
+  const mInv = (v)   => (2 * Math.atan(Math.exp(v)) - Math.PI / 2) * 180 / Math.PI;
+
+  // Find the two adjacent ticks bracketing y (sorted north-to-south = ascending y).
+  let above = null, below = null; // above = smaller y (north), below = larger y (south)
+  for (const tick of sorted) {
+    if (tick.y <= y) above = tick;
+    else { below = tick; break; }
+  }
+  if (above === null) return null;
+  if (above.y === y) return above.lat; // exact match (handles last tick)
+  if (below === null) return null;     // y is beyond the southernmost tick
+
+  // Derive local Mercator scale from the two bracketing ticks.
+  // y_tick = equatorY_local − R × m(lat_tick)
+  // Solving for R:  R = (above.y − below.y) / (m(below.lat) − m(above.lat))
+  const dm = m(below.lat) - m(above.lat); // negative (below.lat < above.lat)
+  if (Math.abs(dm) < 1e-10) return null;
+  const R = (above.y - below.y) / dm; // positive
+
+  // Inverse: m(lat) = m(above.lat) − (y − above.y) / R
+  return mInv(m(above.lat) - (y - above.y) / R);
 }
 
 /**

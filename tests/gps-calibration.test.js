@@ -10,10 +10,20 @@ import {
   buildGradGrid,
   interpolateLatY,
   interpolateLonX,
+  interpolateLonFromX,
+  interpolateLatFromY,
   LON_EXPECTED,
   LAT_EXPECTED,
   LON_TOL,
   LAT_TOL,
+  LON_Y0,
+  LON_H,
+  LON_Y0_BOT,
+  LON_H_BOT,
+  LAT_X0,
+  LAT_W,
+  LAT_X0_RIGHT,
+  LAT_W_RIGHT,
 } from '../js/map/gps-calibration.js';
 
 describe('DEFAULT_CALIBRATION', () => {
@@ -58,8 +68,9 @@ describe('findTickCenters', () => {
     profile[51] = 60;
     const centers = findTickCenters(profile, 100, 20);
     expect(centers).toHaveLength(1);
-    // center of [50,51] = Math.round((50+51)/2) = 51
-    expect(centers[0]).toBe(51);
+    // Weighted centroid: w50=(100-50)=50, w51=(100-60)=40
+    // center = round((50*50 + 51*40) / 90) = round(50.44) = 50
+    expect(centers[0]).toBe(50);
   });
 
   it('finds two separated groups', () => {
@@ -790,8 +801,6 @@ describe('buildGradGrid — 1°-resolution detected ticks', () => {
 
 // ── Scan-strip constants coverage tests ──────────────────────────────────────
 
-import { LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from '../js/map/gps-calibration.js';
-
 const MAP_TOP   = 116; // inner top border (outer: 107)
 const MAP_RIGHT = 4293; // inner right border (outer: 4301)
 const IMG_W    = 4449;
@@ -809,6 +818,12 @@ describe('scan-strip constants — coverage of inner borders', () => {
   it('bottom LON strip starts before mapBottom', () => {
     const mapBottom = IMG_H - MAP_TOP;
     expect(LON_Y0_BOT).toBeLessThanOrEqual(mapBottom);
+  });
+
+  it('bottom LON strip covers its stated outer row y=3344', () => {
+    // LON_H_BOT must include row 3344 (outer border of bottom graduation area).
+    // drawImage draws rows [LON_Y0_BOT, LON_Y0_BOT + LON_H_BOT), so last row = LON_Y0_BOT + LON_H_BOT - 1.
+    expect(LON_Y0_BOT + LON_H_BOT - 1).toBeGreaterThanOrEqual(3344);
   });
 
   it('LAT strip starts before mapLeft', () => {
@@ -934,5 +949,131 @@ describe('scan-strip detection count — synthetic strips', () => {
       return findTickCenters(prof, threshold, 5).length;
     };
     expect(getCount(dataLeft)).toBe(getCount(dataRight));
+  });
+});
+
+// ── Known 15°-resolution tick data used for inverse-interpolation tests ──────
+
+const LON_TICKS_15 = [
+  { x:  321, lon: -165 }, { x:  494, lon: -150 }, { x:  668, lon: -135 },
+  { x:  841, lon: -120 }, { x: 1014, lon: -105 }, { x: 1187, lon:  -90 },
+  { x: 1360, lon:  -75 }, { x: 1533, lon:  -60 }, { x: 1706, lon:  -45 },
+  { x: 1879, lon:  -30 }, { x: 2052, lon:  -15 }, { x: 2225, lon:    0 },
+  { x: 2398, lon:   15 }, { x: 2571, lon:   30 }, { x: 2744, lon:   45 },
+  { x: 2917, lon:   60 }, { x: 3090, lon:   75 }, { x: 3263, lon:   90 },
+  { x: 3436, lon:  105 }, { x: 3609, lon:  120 }, { x: 3782, lon:  135 },
+  { x: 3956, lon:  150 }, { x: 4129, lon:  165 },
+];
+
+const LAT_TICKS_15 = [
+  { y:  391, lat:  75 }, { y:  860, lat:  60 }, { y: 1147, lat:  45 },
+  { y: 1365, lat:  30 }, { y: 1552, lat:  15 }, { y: 1726, lat:   0 },
+  { y: 1900, lat: -15 }, { y: 2087, lat: -30 }, { y: 2306, lat: -45 },
+  { y: 2594, lat: -60 }, { y: 3064, lat: -75 },
+];
+
+describe('interpolateLonFromX', () => {
+  it('returns exact lon for a known tick x', () => {
+    expect(interpolateLonFromX(321,  LON_TICKS_15)).toBeCloseTo(-165, 5);
+    expect(interpolateLonFromX(2225, LON_TICKS_15)).toBeCloseTo(0,    5);
+    expect(interpolateLonFromX(4129, LON_TICKS_15)).toBeCloseTo(165,  5);
+  });
+
+  it('linearly interpolates lon for x between two ticks', () => {
+    // midpoint between 0° (x=2225) and 15° (x=2398): x=2311.5 → lon≈7.5°
+    const mid = Math.round((2225 + 2398) / 2);
+    const lon = interpolateLonFromX(mid, LON_TICKS_15);
+    expect(lon).toBeCloseTo(7.5, 0);
+  });
+
+  it('returns null for x before the first tick', () => {
+    expect(interpolateLonFromX(100, LON_TICKS_15)).toBeNull();
+  });
+
+  it('returns null for x after the last tick', () => {
+    expect(interpolateLonFromX(5000, LON_TICKS_15)).toBeNull();
+  });
+
+  it('returns null for empty array', () => {
+    expect(interpolateLonFromX(1000, [])).toBeNull();
+  });
+
+  it('returns null for single-element array', () => {
+    expect(interpolateLonFromX(1000, [{ x: 1000, lon: 0 }])).toBeNull();
+  });
+
+  it('ignores intermediate entries', () => {
+    const withInter = [...LON_TICKS_15, { x: 2300, lon: 5, intermediate: true }];
+    // x=2300 is between 2225 (0°) and 2398 (15°), should interpolate ~4.3°, not 5°
+    const lon = interpolateLonFromX(2300, withInter);
+    expect(lon).not.toBeCloseTo(5, 0);
+    expect(lon).toBeGreaterThan(0);
+    expect(lon).toBeLessThan(15);
+  });
+
+  it('is the inverse of interpolateLonX (round-trip)', () => {
+    for (const deg of [-165, -90, -15, 0, 45, 165]) {
+      const x   = interpolateLonX(deg, LON_TICKS_15);
+      const lon = interpolateLonFromX(x, LON_TICKS_15);
+      expect(lon).toBeCloseTo(deg, 3);
+    }
+  });
+});
+
+describe('interpolateLatFromY', () => {
+  it('returns exact lat for a known tick y', () => {
+    expect(interpolateLatFromY(391,  LAT_TICKS_15)).toBeCloseTo(75,  5);
+    expect(interpolateLatFromY(1726, LAT_TICKS_15)).toBeCloseTo(0,   5);
+    expect(interpolateLatFromY(3064, LAT_TICKS_15)).toBeCloseTo(-75, 5);
+  });
+
+  it('returns Mercator-correct lat for y between two ticks', () => {
+    // y=1813 is between equator (y=1726, lat=0) and 15°S (y=1900, lat=-15)
+    const lat = interpolateLatFromY(1813, LAT_TICKS_15);
+    expect(lat).toBeGreaterThan(-15);
+    expect(lat).toBeLessThan(0);
+  });
+
+  it('returns null for y before the northernmost tick', () => {
+    expect(interpolateLatFromY(200, LAT_TICKS_15)).toBeNull();
+  });
+
+  it('returns null for y after the southernmost tick', () => {
+    expect(interpolateLatFromY(3200, LAT_TICKS_15)).toBeNull();
+  });
+
+  it('returns null for empty array', () => {
+    expect(interpolateLatFromY(1726, [])).toBeNull();
+  });
+
+  it('returns null for single-element array', () => {
+    expect(interpolateLatFromY(1726, [{ y: 1726, lat: 0 }])).toBeNull();
+  });
+
+  it('ignores intermediate entries', () => {
+    const withInter = [...LAT_TICKS_15, { y: 1800, lat: -7, intermediate: true }];
+    const lat = interpolateLatFromY(1800, withInter);
+    expect(lat).not.toBeCloseTo(-7, 0);
+    expect(lat).toBeGreaterThan(-15);
+    expect(lat).toBeLessThan(0);
+  });
+
+  it('is the inverse of interpolateLatY (round-trip)', () => {
+    for (const deg of [75, 45, 15, 0, -30, -75]) {
+      const y   = interpolateLatY(deg, LAT_TICKS_15);
+      const lat = interpolateLatFromY(y, LAT_TICKS_15);
+      expect(lat).toBeCloseTo(deg, 3);
+    }
+  });
+
+  it('Mercator spacing is non-linear: wider near poles than at equator', () => {
+    // 1° of latitude near 75°N spans more pixels than 1° near the equator
+    const y74N = interpolateLatY(74, LAT_TICKS_15);
+    const y75N = interpolateLatY(75, LAT_TICKS_15);
+    const y0   = interpolateLatY(0,  LAT_TICKS_15);
+    const y1N  = interpolateLatY(1,  LAT_TICKS_15);
+    const spacingPolar   = Math.abs(y74N - y75N);
+    const spacingEquator = Math.abs(y0   - y1N);
+    expect(spacingPolar).toBeGreaterThan(spacingEquator);
   });
 });

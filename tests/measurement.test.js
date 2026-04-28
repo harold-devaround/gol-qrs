@@ -1,6 +1,25 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Measurement } from '../js/map/measurement.js';
 
+// Known 15°-resolution tick data used for toGPS interpolation tests.
+const LON_TICKS_15 = [
+  { x:  321, lon: -165 }, { x:  494, lon: -150 }, { x:  668, lon: -135 },
+  { x:  841, lon: -120 }, { x: 1014, lon: -105 }, { x: 1187, lon:  -90 },
+  { x: 1360, lon:  -75 }, { x: 1533, lon:  -60 }, { x: 1706, lon:  -45 },
+  { x: 1879, lon:  -30 }, { x: 2052, lon:  -15 }, { x: 2225, lon:    0 },
+  { x: 2398, lon:   15 }, { x: 2571, lon:   30 }, { x: 2744, lon:   45 },
+  { x: 2917, lon:   60 }, { x: 3090, lon:   75 }, { x: 3263, lon:   90 },
+  { x: 3436, lon:  105 }, { x: 3609, lon:  120 }, { x: 3782, lon:  135 },
+  { x: 3956, lon:  150 }, { x: 4129, lon:  165 },
+];
+
+const LAT_TICKS_15 = [
+  { y:  391, lat:  75 }, { y:  860, lat:  60 }, { y: 1147, lat:  45 },
+  { y: 1365, lat:  30 }, { y: 1552, lat:  15 }, { y: 1726, lat:   0 },
+  { y: 1900, lat: -15 }, { y: 2087, lat: -30 }, { y: 2306, lat: -45 },
+  { y: 2594, lat: -60 }, { y: 3064, lat: -75 },
+];
+
 describe('Measurement', () => {
   describe('initial state', () => {
     it('starts uncalibrated in px mode', () => {
@@ -219,6 +238,49 @@ describe('Measurement', () => {
       const { lon } = m.toGPS(100 + 4000 / 2, 1500);
       expect(lon).toBeCloseTo(0, 1);
       const { lat } = m.toGPS(100, 1500);
+      expect(lat).toBeCloseTo(0, 1);
+    });
+
+    it('uses detected ticks for lon interpolation when available', () => {
+      const m = new Measurement();
+      m.setGPSCalibration({ lonTicks: LON_TICKS_15, latTicks: LAT_TICKS_15 });
+      // Tick at x=2225 corresponds to lon=0°
+      const { lon } = m.toGPS(2225, 1726);
+      expect(lon).toBeCloseTo(0, 3);
+    });
+
+    it('uses detected ticks for lat interpolation when available', () => {
+      const m = new Measurement();
+      m.setGPSCalibration({ lonTicks: LON_TICKS_15, latTicks: LAT_TICKS_15 });
+      // Tick at y=1726 corresponds to lat=0° (equator)
+      const { lat } = m.toGPS(2225, 1726);
+      expect(lat).toBeCloseTo(0, 3);
+      // Tick at y=391 corresponds to lat=75°N
+      const { lat: lat75 } = m.toGPS(2225, 391);
+      expect(lat75).toBeCloseTo(75, 3);
+    });
+
+    it('falls back to formula when x is out of tick range', () => {
+      const m = new Measurement();
+      m.setGPSCalibration({ lonTicks: LON_TICKS_15, latTicks: LAT_TICKS_15 });
+      // x=10 is before the first lon tick (x=321); should fall back to formula
+      const { lon } = m.toGPS(10, 1726);
+      expect(typeof lon).toBe('number');
+    });
+
+    it('falls back to formula when y is out of tick range', () => {
+      const m = new Measurement();
+      m.setGPSCalibration({ lonTicks: LON_TICKS_15, latTicks: LAT_TICKS_15 });
+      // y=100 is above the northernmost lat tick (y=391)
+      const { lat } = m.toGPS(2225, 100);
+      expect(typeof lat).toBe('number');
+    });
+
+    it('falls back to formula when no ticks are set', () => {
+      const m = new Measurement();
+      // No ticks: should use Mercator formula; formula center (lon=0) is at mapLeft+mapWidth/2 = 148+2074.5 ≈ 2222
+      const { lon, lat } = m.toGPS(2222, 1726);
+      expect(lon).toBeCloseTo(0, 1);
       expect(lat).toBeCloseTo(0, 1);
     });
   });
