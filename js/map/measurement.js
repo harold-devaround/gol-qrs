@@ -1,5 +1,5 @@
 import { EventEmitter } from '../utils/events.js';
-import { DEFAULT_CALIBRATION } from './gps-calibration.js';
+import { DEFAULT_CALIBRATION, interpolateLonFromX, interpolateLatFromY } from './gps-calibration.js';
 
 /**
  * Manages pixel ↔ cm conversion and display mode.
@@ -85,11 +85,21 @@ export class Measurement extends EventEmitter {
 
   /**
    * Convert image-pixel coordinates to GPS (lon, lat) in decimal degrees.
-   * Uses the WorldMap Mercator calibration derived from detected border graduations.
+   * Uses detected graduation ticks for accurate interpolation when available,
+   * falling back to the Mercator formula from global calibration parameters.
    * @returns {{ lon: number, lat: number }}
    */
   toGPS(x, y) {
-    const { mapLeft, mapWidth, equatorY, mercRadius } = this.gpsCalibration;
+    const { mapLeft, mapWidth, equatorY, mercRadius, lonTicks, latTicks } = this.gpsCalibration;
+
+    // Prefer direct interpolation from detected graduation ticks (more accurate).
+    if (lonTicks?.length >= 2 && latTicks?.length >= 2) {
+      const lon = interpolateLonFromX(x, lonTicks);
+      const lat = interpolateLatFromY(y, latTicks);
+      if (lon !== null && lat !== null) return { lon, lat };
+    }
+
+    // Fallback: global Mercator formula from calibration parameters.
     const lon   = (x - mapLeft) / mapWidth * 360 - 180;
     const yMerc = (equatorY - y) / mercRadius;
     const lat   = (2 * Math.atan(Math.exp(yMerc)) - Math.PI / 2) * 180 / Math.PI;

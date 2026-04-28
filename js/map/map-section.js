@@ -5,7 +5,7 @@ import { Measurement } from './measurement.js';
 import { ToolManager } from './tools/manager.js';
 import { renderShape, hitTestShape, shapeInfo, TYPE_LABELS, syncNextId, generateConcentrics } from './shapes.js';
 import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.js';
-import { detectGraduations, buildGradGrid } from './gps-calibration.js';
+import { detectGraduations, buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
 
 /** WorldMap MHF — auto-loaded on init. Physical: 160cm wide × 120cm tall. */
 const WORLDMAP_SRC = '2019_WorldMap_MHF_1.2x1.6m.jpg';
@@ -570,12 +570,12 @@ export function initMap(container) {
     const imgH = canvas.mapImage?.naturalHeight ?? canvas.mapImage?.height ?? 0;
     if (!imgW || !imgH) return;
 
-    // Scan-strip centre positions (mirror of gps-calibration.js constants)
-    // Rendered near the inner map border for visual accuracy.
-    const LON_Y_CENTER  = 100;              // top strip: near mapTop≈105
-    const LON_YB_CENTER = imgH - 100;       // bottom strip centre
-    const LAT_X_CENTER  = 140;              // left strip: near mapLeft≈148
-    const LAT_XR_CENTER = imgW - 140;       // right strip centre
+    // Scan-strip centre positions derived from the scan-strip constants in gps-calibration.js.
+    // Rendered at the centre of each strip so the red marks align with where the scan happened.
+    const LON_Y_CENTER  = Math.round(LON_Y0     + LON_H     / 2);  // top lon strip centre
+    const LON_YB_CENTER = Math.round(LON_Y0_BOT + LON_H_BOT / 2);  // bottom lon strip centre
+    const LAT_X_CENTER  = Math.round(LAT_X0     + LAT_W     / 2);  // left lat strip centre
+    const LAT_XR_CENTER = Math.round(LAT_X0_RIGHT + LAT_W_RIGHT / 2); // right lat strip centre
     const HALF = 8;                         // half-length of tick marks (screen px)
 
     ctx.save();
