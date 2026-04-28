@@ -11,6 +11,7 @@ if (!globalThis.PointerEvent) {
       this.clientX = init.clientX ?? 0;
       this.clientY = init.clientY ?? 0;
       this.pointerType = init.pointerType ?? 'mouse';
+      this.button = init.button ?? 0;
     }
   };
 }
@@ -394,5 +395,178 @@ describe('pinch end', () => {
       makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
     );
     expect(fabricSpy).not.toHaveBeenCalled();
+  });
+});
+
+/* ── Helpers to fire Fabric synthetic events ────────────── */
+
+/**
+ * Returns the handler registered via `fc.on(eventName, handler)`.
+ * MapCanvas registers all Fabric handlers during construction.
+ */
+function getFabricHandler(name) {
+  const call = fabricMock.fc.on.mock.calls.find(([ev]) => ev === name);
+  return call ? call[1] : null;
+}
+
+/** Create a Fabric-style PointerEvent (touch by default). */
+function makeFabricTouchEvent({ clientX = 100, clientY = 100, pointerType = 'touch', button = 0 } = {}) {
+  const e = new PointerEvent('pointerevent', { clientX, clientY, pointerType, button });
+  return e;
+}
+
+describe('touch tap detection (single-finger, no movement)', () => {
+  it('touch mousedown does not immediately emit mousedown to tools', () => {
+    const downSpy = vi.fn();
+    mc.on('mousedown', downSpy);
+    const handler = getFabricHandler('mouse:down');
+
+    handler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+
+    expect(downSpy).not.toHaveBeenCalled();
+    expect(mc._pendingTouchDown).not.toBeNull();
+  });
+
+  it('touch mousedown sets _touchStartScreen', () => {
+    const handler = getFabricHandler('mouse:down');
+    handler({ e: makeFabricTouchEvent({ clientX: 150, clientY: 200 }) });
+    expect(mc._touchStartScreen).toEqual({ x: 150, y: 200 });
+  });
+
+  it('touch mouseup after no movement emits mousedown then mouseup (tap)', () => {
+    const events = [];
+    mc.on('mousedown', () => events.push('down'));
+    mc.on('mouseup',   () => events.push('up'));
+
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+    upHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+
+    expect(events).toEqual(['down', 'up']);
+  });
+
+  it('pending touch state is cleared after tap', () => {
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+    upHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+
+    expect(mc._pendingTouchDown).toBeNull();
+    expect(mc._touchStartScreen).toBeNull();
+    expect(mc._touchMoved).toBe(false);
+  });
+
+  it('mouse (non-touch) mousedown is emitted immediately', () => {
+    const downSpy = vi.fn();
+    mc.on('mousedown', downSpy);
+    const handler = getFabricHandler('mouse:down');
+
+    handler({ e: makeFabricTouchEvent({ pointerType: 'mouse', clientX: 100, clientY: 100 }) });
+
+    expect(downSpy).toHaveBeenCalledOnce();
+    expect(mc._pendingTouchDown).toBeNull();
+  });
+});
+
+describe('touch drag detection (single-finger, movement > threshold)', () => {
+  it('mousemove beyond TOUCH_TAP_THRESHOLD emits buffered mousedown', () => {
+    const events = [];
+    mc.on('mousedown', () => events.push('down'));
+    mc.on('mousemove', () => events.push('move'));
+
+    const downHandler = getFabricHandler('mouse:down');
+    const moveHandler = getFabricHandler('mouse:move');
+
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+    // Move far enough to exceed threshold (default 10px)
+    moveHandler({ e: makeFabricTouchEvent({ clientX: 115, clientY: 100 }) });
+
+    expect(events).toContain('down');
+    expect(mc._touchMoved).toBe(true);
+  });
+
+  it('buffered mousedown position is the original touch-down position', () => {
+    let downWorld = null;
+    mc.on('mousedown', (d) => { downWorld = d.world; });
+
+    const downHandler = getFabricHandler('mouse:down');
+    const moveHandler = getFabricHandler('mouse:move');
+
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 200 }) });
+    moveHandler({ e: makeFabricTouchEvent({ clientX: 120, clientY: 200 }) });
+
+    // World should be the original position (100, 200), not the moved (120, 200)
+    expect(downWorld).toEqual({ x: 100, y: 200 });
+  });
+
+  it('mousemove within threshold does not emit mousedown', () => {
+    const downSpy = vi.fn();
+    mc.on('mousedown', downSpy);
+
+    const downHandler = getFabricHandler('mouse:down');
+    const moveHandler = getFabricHandler('mouse:move');
+
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+    // Move only 3px — within threshold
+    moveHandler({ e: makeFabricTouchEvent({ clientX: 103, clientY: 100 }) });
+
+    expect(downSpy).not.toHaveBeenCalled();
+  });
+
+  it('mouseup after drag emits only mouseup (no second mousedown)', () => {
+    const events = [];
+    mc.on('mousedown', () => events.push('down'));
+    mc.on('mouseup',   () => events.push('up'));
+
+    const downHandler = getFabricHandler('mouse:down');
+    const moveHandler = getFabricHandler('mouse:move');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+    moveHandler({ e: makeFabricTouchEvent({ clientX: 120, clientY: 100 }) }); // exceeds threshold
+    upHandler({ e: makeFabricTouchEvent({ clientX: 120, clientY: 100 }) });
+
+    // mousedown was emitted once (at drag start in mousemove), not again on mouseup
+    expect(events.filter(e => e === 'down')).toHaveLength(1);
+    expect(events).toContain('up');
+  });
+});
+
+describe('two-finger pinch clears pending touch tap', () => {
+  it('2nd finger arrival clears _pendingTouchDown', () => {
+    const downHandler = getFabricHandler('mouse:down');
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+    expect(mc._pendingTouchDown).not.toBeNull();
+
+    // 2nd finger arrives
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 100 }),
+    );
+    expect(mc._pendingTouchDown).toBeNull();
+  });
+
+  it('no mousedown emitted to tools during pinch (tap cancelled by 2nd finger)', () => {
+    const downSpy = vi.fn();
+    mc.on('mousedown', downSpy);
+
+    const downHandler = getFabricHandler('mouse:down');
+    // Simulate 1st finger touching a shape via Fabric's mouse:down
+    downHandler({ e: makeFabricTouchEvent({ clientX: 100, clientY: 100 }) });
+
+    // 2nd finger arrives → cancels pending tap
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 100 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 100 }),
+    );
+
+    expect(downSpy).not.toHaveBeenCalled();
   });
 });
