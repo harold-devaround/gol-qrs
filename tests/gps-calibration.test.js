@@ -68,9 +68,8 @@ describe('findTickCenters', () => {
     profile[51] = 60;
     const centers = findTickCenters(profile, 100, 20);
     expect(centers).toHaveLength(1);
-    // Weighted centroid: w50=(100-50)=50, w51=(100-60)=40
-    // center = round((50*50 + 51*40) / 90) = round(50.44) = 50
-    expect(centers[0]).toBe(50);
+    // Geometric midpoint of group [50, 51]: round((50+51)/2) = round(50.5) = 51
+    expect(centers[0]).toBe(51);
   });
 
   it('finds two separated groups', () => {
@@ -83,6 +82,23 @@ describe('findTickCenters', () => {
     expect(centers).toHaveLength(2);
     expect(centers[0]).toBeCloseTo(100, 0);
     expect(centers[1]).toBeCloseTo(300, 0);
+  });
+
+  it('uses geometric midpoint, not weighted centroid, for asymmetric mark profiles', () => {
+    // Asymmetric 4-pixel-wide mark at indices 100–103:
+    // outer edge (100) is darkest, inner edge (103) is barely below threshold.
+    // Weighted centroid would be pulled toward 100; midpoint should give 101.
+    const profile = new Array(300).fill(200);
+    profile[100] = 30;  // very dark outer edge
+    profile[101] = 60;
+    profile[102] = 80;
+    profile[103] = 90;  // lighter inner edge (still below threshold=100)
+    const centers = findTickCenters(profile, 100, 20);
+    expect(centers).toHaveLength(1);
+    // Geometric midpoint: round((100+103)/2) = round(101.5) = 102
+    expect(centers[0]).toBe(102);
+    // Confirm it is NOT at the outer edge (where weighted centroid would point)
+    expect(centers[0]).toBeGreaterThan(100);
   });
 
   it('finds 23 evenly-spaced groups simulating lon ticks', () => {
@@ -196,6 +212,29 @@ describe('computeCalibration', () => {
     const yMerc75 = (cal.equatorY - 391) / cal.mercRadius;
     const lat75 = (2 * Math.atan(Math.exp(yMerc75)) - Math.PI / 2) * 180 / Math.PI;
     expect(lat75).toBeCloseTo(75, 0.5);
+  });
+
+  it('GPS calculation remains accurate when all tick positions shift by +1 px (midpoint centering)', () => {
+    // Simulate a +1 px uniform shift on all ticks (as produced by midpoint centering)
+    const lonTicksShifted = [322, 494, 667, 840, 1013, 1185, 1358, 1531, 1704, 1877,
+      2050, 2222, 2396, 2569, 2741, 2914, 3087, 3260, 3433, 3606, 3779, 3952, 4125];
+    const latTicksShifted = [392, 861, 1148, 1366, 1553, 1727, 1901, 2087, 2306, 2593, 3060];
+    const cal = computeCalibration(lonTicksShifted, latTicksShifted);
+
+    // mapWidth should be unchanged (depends only on span between first and last tick)
+    const lonTicksOrig = [321, 493, 666, 839, 1012, 1184, 1357, 1530, 1703, 1876,
+      2049, 2221, 2395, 2568, 2740, 2913, 3086, 3259, 3432, 3605, 3778, 3951, 4124];
+    const calOrig = computeCalibration(lonTicksOrig, null);
+    expect(cal.mapWidth).toBe(calOrig.mapWidth);
+
+    // -165° tick at shifted x=322 should still map to -165°
+    const lon165 = (322 - cal.mapLeft) / cal.mapWidth * 360 - 180;
+    expect(lon165).toBeCloseTo(-165, 0.5);
+
+    // Equator tick shifted to y=1727 should still map to lat≈0°
+    const yMerc0 = (cal.equatorY - 1727) / cal.mercRadius;
+    const lat0 = (2 * Math.atan(Math.exp(yMerc0)) - Math.PI / 2) * 180 / Math.PI;
+    expect(lat0).toBeCloseTo(0, 1);
   });
 });
 

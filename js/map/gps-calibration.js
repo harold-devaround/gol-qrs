@@ -73,18 +73,10 @@ export function findTickCenters(profile, threshold, minGap = 20) {
   }
   if (dark.length === 0) return [];
 
-  // Compute the weighted centroid of a dark group [from, to].
-  // Weights = (threshold − profile[i]) so the darkest (most blue) pixel
-  // pulls the center toward itself, accounting for mark thickness.
-  const groupCenter = (from, to) => {
-    let totalW = 0, sumW = 0;
-    for (let i = from; i <= to; i++) {
-      const w = threshold - profile[i];
-      sumW  += i * w;
-      totalW += w;
-    }
-    return totalW > 0 ? Math.round(sumW / totalW) : Math.round((from + to) / 2);
-  };
+  // Use the geometric midpoint of each detected group [from, to].
+  // The middle of the mark extent gives the true centre of the graduation
+  // boundary, regardless of how asymmetric the blue-excess profile is.
+  const groupCenter = (from, to) => Math.round((from + to) / 2);
 
   const centers = [];
   let start = dark[0];
