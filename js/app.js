@@ -1,6 +1,5 @@
 import { initQR } from './qr/qr-section.js';
-import { initMap } from './map/map-section.js';
-import { initImageViewer } from './viewers/image-viewer.js';
+import { initTabRouter } from './tab-router.js';
 
 const CP_IMAGES = Array.from({ length: 10 }, (_, i) => ({
   name: `CP${i}`,
@@ -15,33 +14,25 @@ const TUILE_IMAGES = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 document.addEventListener('DOMContentLoaded', () => {
-  const tabs = document.querySelectorAll('.nav-tab');
-  const sections = document.querySelectorAll('.app-section');
-  const initialized = {};
+  const tabs = [...document.querySelectorAll('.nav-tab')];
+  const sections = [...document.querySelectorAll('.app-section')];
 
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const target = tab.dataset.section;
-      tabs.forEach(t => t.classList.toggle('active', t === tab));
-      sections.forEach(s => s.classList.toggle('active', s.id === `section-${target}`));
-
-      if (!initialized[target]) {
-        initialized[target] = true;
-        const el = document.getElementById(`section-${target}`);
-        switch (target) {
-          case 'map':
-            initMap(el);
-            break;
-          case 'cp':
-            initImageViewer(el, { title: 'Cartes Postales', images: CP_IMAGES });
-            break;
-          case 'tuiles':
-            initImageViewer(el, { title: 'Tuiles', images: TUILE_IMAGES });
-            break;
-        }
-      }
-    });
-  });
+  // Lazy-load heavy sections on first activation so that an error in one
+  // module (e.g. Fabric.js not available) cannot break the whole app.
+  initTabRouter(tabs, sections, {
+    map: async el => {
+      const { initMap } = await import('./map/map-section.js');
+      initMap(el);
+    },
+    cp: async el => {
+      const { initImageViewer } = await import('./viewers/image-viewer.js');
+      initImageViewer(el, { title: 'Cartes Postales', images: CP_IMAGES });
+    },
+    tuiles: async el => {
+      const { initImageViewer } = await import('./viewers/image-viewer.js');
+      initImageViewer(el, { title: 'Tuiles', images: TUILE_IMAGES });
+    },
+  }, ['qr']); // 'qr' is initialized immediately below
 
   // Init QR immediately (default section)
   initQR(document.getElementById('section-qr'));

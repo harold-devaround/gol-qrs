@@ -14,6 +14,7 @@ Application web d'analyse pour le jeu de piste GOL (Game Of Life). Quatre onglet
 index.html                  ← Point d'entrée, charge Fabric.js UMD + app.js
 js/
   app.js                    ← Routage par onglets, lazy-init des sections
+  tab-router.js             ← Logique de routage par onglets (testable, isolation erreurs)
   map/
     map-section.js          ← Orchestrateur : câble canvas, store, tools, UI
     fabric-canvas.js        ← Wrapper Fabric.js v7 : zoom/pan, rendu overlay, snap
@@ -43,15 +44,16 @@ tests/
   geometry.test.js           ← 72 tests
   store.test.js              ← 16 tests
   events.test.js             ← 9 tests
-  shapes.test.js             ← 59 tests
-  measurement.test.js        ← 44 tests
+  shapes.test.js             ← 61 tests
+  measurement.test.js        ← 39 tests
   history.test.js            ← 12 tests
   save-manager.test.js       ← 15 tests
   select-tool.test.js        ← 8 tests
   perpendicular-tool.test.js ← 20 tests
+  tab-router.test.js         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
   fabric-canvas-touch.test.js← 24 tests (jsdom, hors vitest run standard)
-  gps-calibration.test.js    ← 77 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance)
-  TOTAL                      ← 324 tests (+ 24 jsdom)
+  gps-calibration.test.js    ← 95 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance)
+  TOTAL                      ← 366 tests (+ 24 jsdom)
 ```
 
 ## Stack technique
@@ -140,3 +142,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-27| Guides GPS sur point : labels lat/lon aux bords viewport (gauche=lat, haut=lon) avec fond blanc. Grille GPS : dropdown 3 modes (Aucune / Principales 15° / Toutes 5°) + lignes intermédiaires calculées depuis calibration, 266 tests |
 | 2026-04-27| Refonte détection graduations : scan 4 bordures (top+bottom lon, left+right lat), profils blueExcessColumnProfile/blueExcessRowProfile (bleu clair sur blanc), positions moyennées, buildGradGrid avec lonTicksTop/Bottom + latTicksLeft/Right. Lignes de grille en segments clippés aux limites de l'image, solides (pas de tirets), légèrement plus épaisses, semi-transparentes. Tests: blueExcessColumnProfile, blueExcessRowProfile, 2-graduations-par-ligne. 294 tests |
 | 2026-04-27| Fix zone détection graduations : LON_Y0=90/LON_H=18 (y=90-108, ± mapTop≈105), LAT_X0=120/LAT_W=32 (x=120-152), corner exclusion LAT 100→5 px. LAT_EXPECTED 161→181 (±90°). Variance check sur R-values dans computeCalibration (évite corruption mercRadius par ticks linéaires). mercRadiusOk resserré 400-1000→550-760. Export LON/LAT_EXPECTED. 8 nouveaux tests (+4 counts + 2 linear-tick + 2 symmetric top/bottom + left/right). 324 tests |
+| 2026-04-28| Fix affichage onglet 1 + changement d'onglets cassés : extraction `tab-router.js` (logique testable + try-catch isolation), imports dynamiques dans `app.js` (un module cassé ne bloque plus l'app), `initialized['qr']` pré-renseigné. 19 nouveaux tests. 366 tests |
