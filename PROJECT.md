@@ -114,8 +114,10 @@ npm test              # npx vitest run — lance les 433 tests
 npm run test:watch    # vitest en mode watch
 npm run test:coverage # vitest avec rapport de couverture (v8)
 npm run typecheck     # tsc --noEmit — vérification TypeScript
-npm run build         # tsc -p tsconfig.build.json — émet js/**/*.js (consommé par index.html)
+npm run build         # tsc -p tsconfig.build.json — émet dist/**/*.js (consommé par index.html)
 npm run check         # typecheck + test + build (CI complet)
+# Note : `npm install` exécute automatiquement `postinstall` → `npm run build`,
+# de sorte que `dist/` est toujours présent après une installation fraîche.
 ```
 
 ## Historique des modifications
@@ -159,3 +161,4 @@ npm run check         # typecheck + test + build (CI complet)
 | 2026-04-29| Typage strict : suppression `@ts-nocheck` de events.ts, geometry.ts, store.ts, history.ts, measurement.ts, save-manager.ts. Types propres avec imports depuis types.ts. 414 tests, tsc --noEmit ✓. copilot-instructions.md mis à jour avec workflow qualité obligatoire (test + typecheck + coverage). |
 | 2026-04-29| Audit complet : (1) `ShapeStore.restore()` re-synchronise désormais le pool d'IDs (`syncNextId`) et `clear()` libère explicitement les IDs — corrige un bug de fuite d'IDs après undo/clear ; (2) `save-manager._readAll()` valide la forme des données — résiste aux entrées localStorage corrompues (chaînes, tableaux, slots invalides) ; (3) Helper `esc()` introduit dans `map-section.ts` pour échapper les chaînes contrôlées par l'utilisateur (labels de formes, noms de slots) interpolées en HTML — corrige un risque d'injection HTML/CSS ; (4) Suppression `@ts-nocheck` de tab-router.ts, qr-section.ts, image-viewer.ts (typage propre) ; (5) eslint.config.js : règles `ban-ts-comment` et `no-unused-vars` ajustées pour s'aligner sur les conventions du projet. 433 tests, lint ✓, typecheck ✓. |
 | 2026-04-29| Suite audit PR #24 (follow-up "Out of scope") : pipeline de build TS→JS pour rendre l'app exécutable dans le navigateur. Tous les imports relatifs `.ts` réécrits en `.js` (résolution `.js`→`.ts` côté tsc/Vitest, fichier réel côté navigateur). Nouveau `tsconfig.build.json` (extends `tsconfig.json`, `noEmit:false`, `outDir: dist`). Script `npm run build` ajouté ; `npm run check` enchaîne désormais typecheck + test + build. `index.html` charge maintenant `dist/app.js` (séparation source `js/` vs émission `dist/`). `.gitignore` exclut `dist/`. 433 tests inchangés, typecheck ✓, lint ✓, build ✓. |
+| 2026-04-29| Fix « rien ne s'affiche sur le premier tab + tabs morts » : ajout du script `postinstall` (`tsc -p tsconfig.build.json`) dans `package.json`. `dist/` étant gitignoré, après un `git clone` + `npm install`, `dist/app.js` n'existait pas → 404 sur le module ES → aucun JS n'était exécuté (section QR vide, listeners de tabs jamais attachés). Désormais `npm install` régénère automatiquement `dist/`. 433 tests inchangés, typecheck ✓, lint ✓. |
