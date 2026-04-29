@@ -22,6 +22,7 @@ export class SegmentTool extends ToolBase {
     const pt = this.snap(wp);
     if (!this._p1) {
       this._p1 = pt;
+      this._cursor = null;
     } else {
       const end = this.angleSnap(this._p1, pt, e);
       this.addShape(createSegment(this._p1, end));

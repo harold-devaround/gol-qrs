@@ -50,11 +50,12 @@ tests/
   history.test.ts            ← 12 tests
   save-manager.test.ts       ← 15 tests
   select-tool.test.ts        ← 8 tests
+  segment-tool.test.ts       ← 11 tests (création, cancel, régression curseur fantôme, hasMoved)
   perpendicular-tool.test.ts ← 24 tests
   tab-router.test.ts         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
   fabric-canvas-touch.test.ts← 42 tests (jsdom, tap/drag/pinch detection, hasMoved)
   gps-calibration.test.ts    ← 97 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance + GPS accuracy with midpoint-shifted ticks)
-  TOTAL                      ← 414 tests (includes 42 jsdom)
+  TOTAL                      ← 425 tests (includes 42 jsdom)
 ```
 
 ## Stack technique
