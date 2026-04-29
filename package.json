@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint js/ tests/",
+    "check": "npm run typecheck && npm run test"
   },
   "repository": {
     "type": "git",
@@ -20,7 +24,11 @@
   },
   "homepage": "https://github.com/harold-devaround/gol-qrs#readme",
   "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.5",
     "jsdom": "^29.1.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.1.4"
   },
   "dependencies": {
