@@ -58,6 +58,11 @@ export class MapCanvas extends EventEmitter {
     this._lastPinchDist = 0;
     this._lastPinchCenter = null;
 
+    // Touch-tap detection: buffer touch mousedown until tap confirmed or drag detected
+    this._pendingTouchDown = null;  // { screen, world, event }
+    this._touchStartScreen = null;  // { x, y } — screen position at touchstart
+    this._touchMoved = false;       // true once touch moved beyond tap threshold
+
     this._setupResize();
     this._setupEvents();
     this._setupKeyboard();
@@ -252,6 +257,9 @@ export class MapCanvas extends EventEmitter {
     return { sx: clientX - r.left, sy: clientY - r.top };
   }
 
+  // Minimum screen-pixel movement to distinguish a drag from a tap (touch only).
+  static TOUCH_TAP_THRESHOLD = 10;
+
   _setupEvents() {
     // Mouse down
     this.fc.on('mouse:down', (opt) => {
@@ -263,6 +271,16 @@ export class MapCanvas extends EventEmitter {
       if (e.button === 1 || e.button === 2 || (e.button === 0 && this._spaceDown)) {
         this._panning = true;
         this._panStart = { x: sx, y: sy };
+        return;
+      }
+
+      // Touch: buffer until tap confirmed (lift without movement) or drag detected.
+      // This prevents accidental shape creation/selection when the user intends to pan.
+      if (e.pointerType === 'touch') {
+        const wp = this.toWorld(sx, sy);
+        this._pendingTouchDown = { screen: { x: sx, y: sy }, world: wp, event: e };
+        this._touchStartScreen = { x: sx, y: sy };
+        this._touchMoved = false;
         return;
       }
 
@@ -282,6 +300,18 @@ export class MapCanvas extends EventEmitter {
         return;
       }
 
+      // Touch drag detection: once movement exceeds the tap threshold, confirm drag start.
+      if (e.pointerType === 'touch' && this._pendingTouchDown && !this._touchMoved) {
+        const ds = this._touchStartScreen;
+        if (Math.hypot(sx - ds.x, sy - ds.y) > MapCanvas.TOUCH_TAP_THRESHOLD) {
+          this._touchMoved = true;
+          // Emit the buffered mousedown so the active tool (e.g. SelectTool) can start a drag.
+          const d = this._pendingTouchDown;
+          this._pendingTouchDown = null;
+          this.emit('mousedown', { screen: d.screen, world: d.world, event: d.event });
+        }
+      }
+
       const wp = this.toWorld(sx, sy);
       this.emit('mousemove', { screen: { x: sx, y: sy }, world: wp, event: e });
     });
@@ -297,6 +327,21 @@ export class MapCanvas extends EventEmitter {
       const e = opt.e;
       const { sx, sy } = this._canvasXY(e);
       const wp = this.toWorld(sx, sy);
+
+      if (e.pointerType === 'touch') {
+        if (this._pendingTouchDown) {
+          // Tap (no significant movement): fire mousedown at tap position, then mouseup.
+          const d = this._pendingTouchDown;
+          this._pendingTouchDown = null;
+          this.emit('mousedown', { screen: d.screen, world: d.world, event: d.event });
+        }
+        this._pendingTouchDown = null;
+        this._touchStartScreen = null;
+        this._touchMoved = false;
+        this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e });
+        return;
+      }
+
       this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e });
     });
 
@@ -356,6 +401,10 @@ export class MapCanvas extends EventEmitter {
           this._lastPinchCenter = getPinchCenter();
           this._panning = false;
           this._panStart = null;
+          // Discard any pending single-touch tap — the gesture is now a pinch, not a tap
+          this._pendingTouchDown = null;
+          this._touchStartScreen = null;
+          this._touchMoved = false;
           // Signal active tool to cancel any in-progress action started by finger 1
           this.emit('cancel');
         }
