@@ -13,46 +13,47 @@ Application web d'analyse pour le jeu de piste GOL (Game Of Life). Quatre onglet
 ```
 index.html                  ← Point d'entrée, charge Fabric.js UMD + app.js
 js/
-  app.js                    ← Routage par onglets, lazy-init des sections
-  tab-router.js             ← Logique de routage par onglets (testable, isolation erreurs)
+  app.ts                    ← Routage par onglets, lazy-init des sections
+  tab-router.ts             ← Logique de routage par onglets (testable, isolation erreurs)
+  types.ts                  ← Interfaces TypeScript partagées (Shape, Point, Rect, etc.)
   map/
-    map-section.js          ← Orchestrateur : câble canvas, store, tools, UI
-    fabric-canvas.js        ← Wrapper Fabric.js v7 : zoom/pan, rendu overlay, snap
-    store.js                ← ShapeStore : CRUD, sélection, visibilité, snapshot/restore
-    history.js              ← Undo/redo par snapshots (max 80)
-    measurement.js          ← Conversion px ↔ cm, calibration, formatage, GPS (Mercator)
-    gps-calibration.js      ← Détection des graduations en bordures, calibration GPS runtime
-    save-manager.js         ← Persistance localStorage (slots nommés)
-    shapes.js               ← Factories, renderers, hit-test, moveShape, shapeInfo
+    map-section.ts          ← Orchestrateur : câble canvas, store, tools, UI
+    fabric-canvas.ts        ← Wrapper Fabric.js v7 : zoom/pan, rendu overlay, snap
+    store.ts                ← ShapeStore : CRUD, sélection, visibilité, snapshot/restore
+    history.ts              ← Undo/redo par snapshots (max 80)
+    measurement.ts          ← Conversion px ↔ cm, calibration, formatage, GPS (Mercator)
+    gps-calibration.ts      ← Détection des graduations en bordures, calibration GPS runtime
+    save-manager.ts         ← Persistance localStorage (slots nommés)
+    shapes.ts               ← Factories, renderers, hit-test, moveShape, shapeInfo
     tools/
-      base.js               ← ToolBase abstraite (activate, mouse handlers, snap)
-      manager.js             ← Gestion des 11 outils + raccourcis clavier
-      select.js              ← Outil de sélection/déplacement
-      point.js, segment.js, line.js, circle.js, triangle.js
-      median.js, bisector.js, angle.js
-      parallel.js, perpendicular.js
+      base.ts               ← ToolBase abstraite (activate, mouse handlers, snap)
+      manager.ts             ← Gestion des 11 outils + raccourcis clavier
+      select.ts              ← Outil de sélection/déplacement
+      point.ts, segment.ts, line.ts, circle.ts, triangle.ts
+      median.ts, bisector.ts, angle.ts
+      parallel.ts, perpendicular.ts
   viewers/
-    image-viewer.js          ← Galerie + lightbox pour CP et Tuiles
+    image-viewer.ts          ← Galerie + lightbox pour CP et Tuiles
   qr/
-    qr-section.js            ← Section analyse QR
+    qr-section.ts            ← Section analyse QR
   utils/
-    events.js                ← EventEmitter léger (on/off/emit)
-    geometry.js              ← Fonctions math (distance, angles, intersections, etc.)
+    events.ts                ← EventEmitter léger (on/off/emit)
+    geometry.ts              ← Fonctions math (distance, angles, intersections, etc.)
 css/
   main.css                   ← Thème sombre, tokens CSS, tous les styles
 tests/
-  geometry.test.js           ← 72 tests
-  store.test.js              ← 16 tests
-  events.test.js             ← 9 tests
-  shapes.test.js             ← 61 tests
-  measurement.test.js        ← 39 tests
-  history.test.js            ← 12 tests
-  save-manager.test.js       ← 15 tests
-  select-tool.test.js        ← 8 tests
-  perpendicular-tool.test.js ← 24 tests
-  tab-router.test.js         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
-  fabric-canvas-touch.test.js← 42 tests (jsdom, tap/drag/pinch detection, hasMoved)
-  gps-calibration.test.js    ← 97 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance + GPS accuracy with midpoint-shifted ticks)
+  geometry.test.ts           ← 72 tests
+  store.test.ts              ← 16 tests
+  events.test.ts             ← 9 tests
+  shapes.test.ts             ← 61 tests
+  measurement.test.ts        ← 39 tests
+  history.test.ts            ← 12 tests
+  save-manager.test.ts       ← 15 tests
+  select-tool.test.ts        ← 8 tests
+  perpendicular-tool.test.ts ← 24 tests
+  tab-router.test.ts         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
+  fabric-canvas-touch.test.ts← 42 tests (jsdom, tap/drag/pinch detection, hasMoved)
+  gps-calibration.test.ts    ← 97 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance + GPS accuracy with midpoint-shifted ticks)
   TOTAL                      ← 414 tests (includes 42 jsdom)
 ```
 
@@ -62,6 +63,7 @@ tests/
 |-------------|---------|---------------------------------------------|
 | Fabric.js   | 7.2.0   | Rendu canvas, chargé via `<script>` UMD     |
 | Vitest      | 4.1.4   | Framework de test (`npx vitest run`)         |
+| TypeScript  | 6.0.x   | Typage statique (`npx tsc --noEmit`)         |
 | ES Modules  | —       | `"type": "module"` dans package.json        |
 | Pas de bundler | —    | Fichiers servis directement                 |
 
@@ -105,8 +107,11 @@ tests/
 ## Commandes
 
 ```bash
-npm test           # npx vitest run — lance les 414 tests
-npm run test:watch # vitest en mode watch
+npm test              # npx vitest run — lance les 414 tests
+npm run test:watch    # vitest en mode watch
+npm run test:coverage # vitest avec rapport de couverture (v8)
+npm run typecheck     # tsc --noEmit — vérification TypeScript
+npm run check         # typecheck + test (CI complet)
 ```
 
 ## Historique des modifications
@@ -146,3 +151,4 @@ npm run test:watch # vitest en mode watch
 | 2026-04-28| Fix centrage graduation GPS : `findTickCenters` utilise désormais le milieu géométrique `(from+to)/2` (midpoint) au lieu du centroïde pondéré. Corrige un décalage de 1–2 px : les traits de grille passent maintenant par le centre de l'épaisseur de la graduation. GPS inchangé (mapWidth non affecté). 368 tests |
 | 2026-04-29| Validation étapes intermédiaires sur levé de doigt : tous les outils de dessin (Point, Segment, Droite, Cercle, Triangle, Médiane, Médiatrice, Angle, Parallèle, Perpendiculaire) valident les étapes dans `onMouseUp` avec garde `hasMoved`, non plus dans `onMouseDown`. `fabric-canvas.js` émet `hasMoved` dans `mouseup` (touch + souris). Évite les validations indésirées lors d'un déplacement/zoom. 414 tests |
 | 2026-04-28| Amélioration UX mobile : détection tap vs drag pour touch unique — `mousedown` bufferisé jusqu'au levé de doigt (tap = pas de déplacement) ou au franchissement du seuil de 10px (drag). Plus d'ajout accidentel de points en dessinant. Pinch 2 doigts annule le tap en attente (plus de sélection accidentelle). jsdom installé, 403 tests |
+| —         | Migration TypeScript : renommage .js → .ts (sources + tests), tsconfig.json, vitest.config.ts, eslint.config.js, js/types.ts (interfaces Shape/Point/Rect). `// @ts-nocheck` sur fichiers existants (approche progressive). Scripts npm : typecheck, lint, check, test:coverage. 414 tests, tsc --noEmit ✓ |
