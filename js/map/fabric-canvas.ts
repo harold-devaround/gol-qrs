@@ -257,8 +257,12 @@ export class MapCanvas extends EventEmitter {
 
   _canvasXY(e) {
     const r = this.el.getBoundingClientRect();
-    const clientX = e.clientX ?? e.touches?.[0]?.clientX ?? 0;
-    const clientY = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+    // touchend events expose (0,0) for clientX/Y on some browsers — `??` would not
+    // fall back because 0 is not nullish. Prefer touch coordinates when available
+    // and fall back to changedTouches for end events.
+    const t = e.touches?.[0] ?? e.changedTouches?.[0];
+    const clientX = (t?.clientX ?? e.clientX) ?? 0;
+    const clientY = (t?.clientY ?? e.clientY) ?? 0;
     return { sx: clientX - r.left, sy: clientY - r.top };
   }
 
@@ -346,15 +350,19 @@ export class MapCanvas extends EventEmitter {
       if (e.pointerType === 'touch') {
         // Capture hasMoved before resetting state
         const hasMoved = this._touchMoved;
-        if (this._pendingTouchDown) {
-          // Tap (no significant movement): fire mousedown at tap position, then mouseup.
-          const d = this._pendingTouchDown;
-          this._pendingTouchDown = null;
-          this.emit('mousedown', { screen: d.screen, world: d.world, event: d.event });
-        }
+        const pending = this._pendingTouchDown;
         this._pendingTouchDown = null;
         this._touchStartScreen = null;
         this._touchMoved = false;
+        if (pending) {
+          // Tap (no significant movement): emit BOTH mousedown and mouseup at the
+          // original tap position. Some touch devices/browsers report incorrect
+          // coordinates on pointerup/touchend (e.g. clientX=0), which would otherwise
+          // cause shapes to be created far from where the user actually tapped.
+          this.emit('mousedown', { screen: pending.screen, world: pending.world, event: pending.event });
+          this.emit('mouseup', { screen: pending.screen, world: pending.world, event: e, hasMoved: false });
+          return;
+        }
         this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e, hasMoved });
         return;
       }

@@ -674,6 +674,21 @@ describe('hasMoved flag in mouseup events', () => {
       expect(upData.hasMoved).toBe(false);
     });
 
+    it('mouse mouseup uses the actual cursor position (no buffering for mouse)', () => {
+      // For non-touch, the pointerup event always carries reliable coordinates,
+      // so the mouseup world should reflect the actual lift position.
+      let upWorld = null;
+      mc.on('mouseup', (d) => { upWorld = d.world; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 100, clientY: 100 }) });
+      upHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 105, clientY: 100 }) });
+
+      expect(upWorld).toEqual({ x: 105, y: 100 });
+    });
+
     it('hasMoved resets between independent clicks', () => {
       const upEvents = [];
       mc.on('mouseup', (d) => { upEvents.push(d.hasMoved); });
@@ -696,3 +711,181 @@ describe('hasMoved flag in mouseup events', () => {
   });
 });
 
+/* ── Regression: mobile tap world coordinate ─────────────── */
+
+describe('mobile tap world coordinate (regression: tools created far from tap)', () => {
+  it('touch tap mouseup world equals touch-down world (not pointerup world)', () => {
+    // Real-world bug: a small finger drift between touchstart and touchend
+    // (still within the tap threshold) caused tools to create shapes at the
+    // pointerup position rather than the original tap position.
+    let upWorld = null;
+    mc.on('mouseup', (d) => { upWorld = d.world; });
+
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    // Pointerup at a slightly different position (still under 10px threshold)
+    upHandler({ e: makeFabricPointerEvent({ clientX: 305, clientY: 403 }) });
+
+    // Mouseup world MUST be the original tap position, not the drifted lift position.
+    expect(upWorld).toEqual({ x: 300, y: 400 });
+  });
+
+  it('touch tap mouseup world equals tap-down world even when pointerup has clientX=0 (touchend)', () => {
+    // Some browsers/devices fire the touchend with clientX=0/clientY=0 because
+    // touchend has no `touches` payload. Without the buffered tap position the
+    // emitted mouseup would land at (-r.left, -r.top) → far outside the map.
+    let upWorld = null;
+    let downWorld = null;
+    mc.on('mousedown', (d) => { downWorld = d.world; });
+    mc.on('mouseup', (d) => { upWorld = d.world; });
+
+    // Simulate a canvas offset from the viewport edge
+    fabricMock.upperCanvasEl.getBoundingClientRect = vi.fn(() => ({
+      left: 200, top: 100, right: 1000, bottom: 700, width: 800, height: 600,
+    }));
+
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    // Tap at clientX=500 → canvas-local sx=300
+    downHandler({ e: makeFabricPointerEvent({ clientX: 500, clientY: 400 }) });
+    // pointerup with bogus 0,0 coords (touchend pattern)
+    upHandler({ e: makeFabricPointerEvent({ clientX: 0, clientY: 0 }) });
+
+    expect(downWorld).toEqual({ x: 300, y: 300 });
+    expect(upWorld).toEqual({ x: 300, y: 300 });
+  });
+
+  it('touch tap mouseup is emitted with hasMoved=false', () => {
+    let upData = null;
+    mc.on('mouseup', (d) => { upData = d; });
+
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100 }) });
+    upHandler({ e: makeFabricPointerEvent({ clientX: 102, clientY: 101 }) }); // tiny drift
+
+    expect(upData.hasMoved).toBe(false);
+  });
+
+  it('emits mousedown then mouseup at the SAME world position for a tap', () => {
+    const events = [];
+    mc.on('mousedown', (d) => events.push({ type: 'down', world: d.world }));
+    mc.on('mouseup',   (d) => events.push({ type: 'up',   world: d.world }));
+
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricPointerEvent({ clientX: 250, clientY: 350 }) });
+    upHandler({ e: makeFabricPointerEvent({ clientX: 252, clientY: 351 }) });
+
+    expect(events).toHaveLength(2);
+    expect(events[0].type).toBe('down');
+    expect(events[1].type).toBe('up');
+    expect(events[0].world).toEqual(events[1].world);
+    expect(events[0].world).toEqual({ x: 250, y: 350 });
+  });
+
+  it('touch drag mouseup uses real lift position (not buffered)', () => {
+    // When the user actually drags, the mouseup MUST reflect the real release
+    // position so that drag tools (like SelectTool moving shapes) finalize
+    // at the right place.
+    let upWorld = null;
+    mc.on('mouseup', (d) => { upWorld = d.world; });
+
+    const downHandler = getFabricHandler('mouse:down');
+    const moveHandler = getFabricHandler('mouse:move');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100 }) });
+    moveHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 100 }) }); // exceeds threshold
+    upHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 100 }) });
+
+    expect(upWorld).toEqual({ x: 200, y: 100 });
+  });
+
+  it('touch tap world is correct under non-identity viewport (zoomed/panned)', () => {
+    // Viewport: zoom=2, pan offset (-100, -50) → world = (sx-100)/2 wait actually
+    // toWorld uses (sx - vpt[4]) / vpt[0]. With vpt=[2,0,0,2,-100,-50]:
+    //   world = (sx - (-100))/2 = (sx + 100)/2
+    fabricMock.fc.viewportTransform[0] = 2;
+    fabricMock.fc.viewportTransform[3] = 2;
+    fabricMock.fc.viewportTransform[4] = -100;
+    fabricMock.fc.viewportTransform[5] = -50;
+
+    let downWorld = null;
+    let upWorld = null;
+    mc.on('mousedown', (d) => { downWorld = d.world; });
+    mc.on('mouseup', (d) => { upWorld = d.world; });
+
+    const downHandler = getFabricHandler('mouse:down');
+    const upHandler   = getFabricHandler('mouse:up');
+
+    downHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 150 }) });
+    upHandler({ e: makeFabricPointerEvent({ clientX: 0, clientY: 0 }) }); // bogus pointerup
+
+    // sx=200 → world.x = (200 + 100)/2 = 150
+    // sy=150 → world.y = (150 + 50)/2 = 100
+    expect(downWorld).toEqual({ x: 150, y: 100 });
+    expect(upWorld).toEqual({ x: 150, y: 100 });
+  });
+});
+
+/* ── Regression: _canvasXY robustness ────────────────────── */
+
+describe('_canvasXY handles missing coordinates from touchend', () => {
+  it('falls back to changedTouches when touches is empty (touchend pattern)', () => {
+    // Simulate a TouchEvent.touchend: empty `touches`, populated `changedTouches`.
+    fabricMock.upperCanvasEl.getBoundingClientRect = vi.fn(() => ({
+      left: 50, top: 100, right: 850, bottom: 700, width: 800, height: 600,
+    }));
+
+    const fakeTouchEnd = {
+      touches: [],
+      changedTouches: [{ clientX: 250, clientY: 300 }],
+      // clientX/Y are intentionally undefined — TouchEvent doesn't expose them.
+    };
+
+    const { sx, sy } = mc._canvasXY(fakeTouchEnd);
+    expect(sx).toBe(200); // 250 - 50
+    expect(sy).toBe(200); // 300 - 100
+  });
+
+  it('uses touches[0] when present (touchstart/touchmove pattern)', () => {
+    fabricMock.upperCanvasEl.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600,
+    }));
+
+    const fakeTouchStart = {
+      touches: [{ clientX: 123, clientY: 456 }],
+    };
+    const { sx, sy } = mc._canvasXY(fakeTouchStart);
+    expect(sx).toBe(123);
+    expect(sy).toBe(456);
+  });
+
+  it('uses event.clientX/Y for PointerEvent (no touches array)', () => {
+    fabricMock.upperCanvasEl.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600,
+    }));
+
+    const ptr = { clientX: 50, clientY: 75 }; // no touches/changedTouches
+    const { sx, sy } = mc._canvasXY(ptr);
+    expect(sx).toBe(50);
+    expect(sy).toBe(75);
+  });
+
+  it('preserves a legitimate clientX=0 (origin click)', () => {
+    fabricMock.upperCanvasEl.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600,
+    }));
+
+    const ptr = { clientX: 0, clientY: 0 }; // PointerEvent at origin
+    const { sx, sy } = mc._canvasXY(ptr);
+    expect(sx).toBe(0);
+    expect(sy).toBe(0);
+  });
+});
