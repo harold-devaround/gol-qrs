@@ -1,5 +1,5 @@
 import { EventEmitter } from '../utils/events.ts';
-import { releaseId } from './shapes.ts';
+import { releaseId, syncNextId } from './shapes.ts';
 import type { Shape } from '../types.ts';
 
 /**
@@ -52,7 +52,12 @@ export class ShapeStore extends EventEmitter {
     if (s) { Object.assign(s, props); this.emit('change'); }
   }
 
-  clear(): void { this.shapes = []; this.emit('change'); this.emit('selection'); }
+  clear(): void {
+    for (const s of this.shapes) releaseId(s.id);
+    this.shapes = [];
+    this.emit('change');
+    this.emit('selection');
+  }
 
   /** Deep-clone current state for undo/redo. */
   snapshot(): Shape[] { return JSON.parse(JSON.stringify(this.shapes)); }
@@ -60,6 +65,8 @@ export class ShapeStore extends EventEmitter {
   /** Restore from a snapshot (deep-cloned on restore too). */
   restore(snap: Shape[]): void {
     this.shapes = JSON.parse(JSON.stringify(snap));
+    // Rebuild the global ID pool so freed IDs can be reused (e.g. after undo).
+    syncNextId(this.shapes);
     this.emit('change');
     this.emit('selection');
   }

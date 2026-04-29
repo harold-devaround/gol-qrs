@@ -43,19 +43,19 @@ css/
   main.css                   ← Thème sombre, tokens CSS, tous les styles
 tests/
   geometry.test.ts           ← 72 tests
-  store.test.ts              ← 16 tests
+  store.test.ts              ← 19 tests
   events.test.ts             ← 9 tests
   shapes.test.ts             ← 61 tests
   measurement.test.ts        ← 39 tests
   history.test.ts            ← 12 tests
-  save-manager.test.ts       ← 15 tests
+  save-manager.test.ts       ← 20 tests (incl. corrupt storage handling)
   select-tool.test.ts        ← 8 tests
   segment-tool.test.ts       ← 11 tests (création, cancel, régression curseur fantôme, hasMoved)
   perpendicular-tool.test.ts ← 24 tests
   tab-router.test.ts         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
   fabric-canvas-touch.test.ts← 42 tests (jsdom, tap/drag/pinch detection, hasMoved)
   gps-calibration.test.ts    ← 97 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance + GPS accuracy with midpoint-shifted ticks)
-  TOTAL                      ← 425 tests (includes 42 jsdom)
+  TOTAL                      ← 433 tests (includes 42 jsdom)
 ```
 
 ## Stack technique
@@ -110,7 +110,7 @@ tests/
 ## Commandes
 
 ```bash
-npm test              # npx vitest run — lance les 414 tests
+npm test              # npx vitest run — lance les 433 tests
 npm run test:watch    # vitest en mode watch
 npm run test:coverage # vitest avec rapport de couverture (v8)
 npm run typecheck     # tsc --noEmit — vérification TypeScript
@@ -156,3 +156,4 @@ npm run check         # typecheck + test (CI complet)
 | 2026-04-28| Amélioration UX mobile : détection tap vs drag pour touch unique — `mousedown` bufferisé jusqu'au levé de doigt (tap = pas de déplacement) ou au franchissement du seuil de 10px (drag). Plus d'ajout accidentel de points en dessinant. Pinch 2 doigts annule le tap en attente (plus de sélection accidentelle). jsdom installé, 403 tests |
 | —         | Migration TypeScript : renommage .js → .ts (sources + tests), tsconfig.json, vitest.config.ts, eslint.config.js, js/types.ts (interfaces Shape/Point/Rect). `// @ts-nocheck` sur fichiers existants (approche progressive). Scripts npm : typecheck, lint, check, test:coverage. 414 tests, tsc --noEmit ✓ |
 | 2026-04-29| Typage strict : suppression `@ts-nocheck` de events.ts, geometry.ts, store.ts, history.ts, measurement.ts, save-manager.ts. Types propres avec imports depuis types.ts. 414 tests, tsc --noEmit ✓. copilot-instructions.md mis à jour avec workflow qualité obligatoire (test + typecheck + coverage). |
+| 2026-04-29| Audit complet : (1) `ShapeStore.restore()` re-synchronise désormais le pool d'IDs (`syncNextId`) et `clear()` libère explicitement les IDs — corrige un bug de fuite d'IDs après undo/clear ; (2) `save-manager._readAll()` valide la forme des données — résiste aux entrées localStorage corrompues (chaînes, tableaux, slots invalides) ; (3) Helper `esc()` introduit dans `map-section.ts` pour échapper les chaînes contrôlées par l'utilisateur (labels de formes, noms de slots) interpolées en HTML — corrige un risque d'injection HTML/CSS ; (4) Suppression `@ts-nocheck` de tab-router.ts, qr-section.ts, image-viewer.ts (typage propre) ; (5) eslint.config.js : règles `ban-ts-comment` et `no-unused-vars` ajustées pour s'aligner sur les conventions du projet. 433 tests, lint ✓, typecheck ✓. |

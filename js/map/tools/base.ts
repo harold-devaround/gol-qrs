@@ -20,13 +20,13 @@ export class ToolBase {
   cancel() {}
 
   // Override these in subclasses
-  onMouseDown(world, e) {}
-  onMouseMove(world, e) {}
-  onMouseUp(world, e, hasMoved) {}
+  onMouseDown(_world, _e) {}
+  onMouseMove(_world, _e) {}
+  onMouseUp(_world, _e, _hasMoved) {}
   onKeyDown(e) { if (e.key === 'Escape') this.cancel(); }
 
   /** Render tool-specific preview (rubber-bands, etc.) in screen coords. */
-  renderPreview(ctx, viewport) {}
+  renderPreview(_ctx, _viewport) {}
 
   /* ── Convenience ───────────────────────────────────── */
 

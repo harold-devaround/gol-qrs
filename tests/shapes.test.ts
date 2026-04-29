@@ -420,9 +420,9 @@ describe('syncNextId', () => {
 describe('releaseId', () => {
   it('recycles a released id', () => {
     syncNextId([]);
-    const p1 = createPoint(0, 0);
+    createPoint(0, 0);
     const p2 = createPoint(1, 1);
-    const p3 = createPoint(2, 2);
+    createPoint(2, 2);
     const id2 = p2.id;
     releaseId(id2);
     const p4 = createPoint(3, 3);
@@ -432,7 +432,7 @@ describe('releaseId', () => {
   it('recycles the lowest released id first', () => {
     syncNextId([]);
     const a = createPoint(0, 0);
-    const b = createPoint(1, 1);
+    createPoint(1, 1);
     const c = createPoint(2, 2);
     releaseId(c.id);
     releaseId(a.id);

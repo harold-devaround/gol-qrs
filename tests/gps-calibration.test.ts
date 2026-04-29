@@ -15,8 +15,6 @@ import {
   interpolateLatFromY,
   LON_EXPECTED,
   LAT_EXPECTED,
-  LON_TOL,
-  LAT_TOL,
   LON_Y0,
   LON_H,
   LON_Y0_BOT,
@@ -24,7 +22,6 @@ import {
   LAT_X0,
   LAT_W,
   LAT_X0_RIGHT,
-  LAT_W_RIGHT,
 } from '../js/map/gps-calibration.ts';
 
 describe('DEFAULT_CALIBRATION', () => {

@@ -4,7 +4,7 @@ import { ShapeStore } from './store.ts';
 import { History } from './history.ts';
 import { Measurement } from './measurement.ts';
 import { ToolManager } from './tools/manager.ts';
-import { renderShape, hitTestShape, shapeInfo, TYPE_LABELS, syncNextId, generateConcentrics } from './shapes.ts';
+import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics } from './shapes.ts';
 import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.ts';
 import { detectGraduations, buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.ts';
 
@@ -12,6 +12,16 @@ import { detectGraduations, buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT,
 const WORLDMAP_SRC = '2019_WorldMap_MHF_1.2x1.6m.jpg';
 const WORLDMAP_HEIGHT_CM = 120;
 const WORLDMAP_WIDTH_CM = 160;
+
+/** Escape user-controlled text for safe HTML interpolation (text and attribute contexts). */
+const _escEl = typeof document !== 'undefined' ? document.createElement('div') : null;
+function esc(s) {
+  if (s === undefined || s === null) return '';
+  if (!_escEl) return String(s);
+  _escEl.textContent = String(s);
+  // textContent escapes &, <, >; we additionally escape " and ' for safe attribute use.
+  return _escEl.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
 /**
  * Map section orchestrator — wires together canvas, store, tools, and UI.
@@ -76,7 +86,7 @@ export function initMap(container) {
     propsToggleBtn.classList.remove('active');
   }
   propsToggleBtn.addEventListener('click', () => {
-    propsEl.classList.contains('open') ? closeProps() : openProps();
+    if (propsEl.classList.contains('open')) closeProps(); else openProps();
   });
   backdropEl.addEventListener('click', closeProps);
 
@@ -97,7 +107,7 @@ export function initMap(container) {
     toolsToggleBtn.classList.remove('active');
   }
   toolsToggleBtn.addEventListener('click', () => {
-    toolbarEl.classList.contains('open') ? closeTools() : openTools();
+    if (toolbarEl.classList.contains('open')) closeTools(); else openTools();
   });
   toolsBackdropEl.addEventListener('click', closeTools);
   // Close toolbar panel when orientation switches to landscape
@@ -388,13 +398,13 @@ export function initMap(container) {
         <h3>Sauvegarder</h3>
         <label class="modal-label">Nom de la sauvegarde</label>
         <div class="modal-input-row">
-          <input type="text" class="modal-input" id="save-name" value="${defaultName}" maxlength="60">
+          <input type="text" class="modal-input" id="save-name" value="${esc(defaultName)}" maxlength="60">
         </div>
         ${saves.length ? `<p class="modal-subtitle">Sauvegardes existantes (cliquer pour écraser) :</p>
         <div class="save-slot-list">${saves.map(s =>
-          `<div class="save-slot" data-name="${s.name}">
-            <span class="save-slot-name">${s.name}</span>
-            <span class="save-slot-meta">${s.count} formes · ${new Date(s.date).toLocaleString('fr-FR')}</span>
+          `<div class="save-slot" data-name="${esc(s.name)}">
+            <span class="save-slot-name">${esc(s.name)}</span>
+            <span class="save-slot-meta">${s.count} formes · ${esc(new Date(s.date).toLocaleString('fr-FR'))}</span>
           </div>`).join('')}
         </div>` : ''}
         <div class="modal-actions">
@@ -426,7 +436,6 @@ export function initMap(container) {
   }
 
   function openLoadModal() {
-    const saves = listSaves();
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
@@ -441,14 +450,14 @@ export function initMap(container) {
         return;
       }
       const listHtml = current.map(s => `
-        <div class="save-slot" data-name="${s.name}">
+        <div class="save-slot" data-name="${esc(s.name)}">
           <div class="save-slot-main">
-            <span class="save-slot-name">${s.name}</span>
-            <span class="save-slot-meta">${s.count} formes · ${new Date(s.date).toLocaleString('fr-FR')}</span>
+            <span class="save-slot-name">${esc(s.name)}</span>
+            <span class="save-slot-meta">${s.count} formes · ${esc(new Date(s.date).toLocaleString('fr-FR'))}</span>
           </div>
           <div class="save-slot-actions">
-            <button class="btn btn-sm btn-primary save-load-btn" data-name="${s.name}">Charger</button>
-            <button class="btn btn-sm btn-danger save-del-btn" data-name="${s.name}">×</button>
+            <button class="btn btn-sm btn-primary save-load-btn" data-name="${esc(s.name)}">Charger</button>
+            <button class="btn btn-sm btn-danger save-del-btn" data-name="${esc(s.name)}">×</button>
           </div>
         </div>`).join('');
 
@@ -464,7 +473,6 @@ export function initMap(container) {
           if (!shapes) return;
           history.save();
           store.restore(shapes);
-          syncNextId(shapes);
           // Restore saved options
           const opts = loadOptions();
           if (opts) {
@@ -642,7 +650,7 @@ export function initMap(container) {
         html += `<div class="props-row"><label>Rayon</label><input type="number" value="${parseFloat(rVal.toFixed(2))}" min="1" step="1" id="input-radius" class="props-input-sm"><span class="props-unit">${unit}</span></div>`;
       }
       if (s.label !== undefined) {
-        html += `<div class="props-row"><label>Label</label><input type="text" value="${s.label}" data-prop="label" class="props-input"></div>`;
+        html += `<div class="props-row"><label>Label</label><input type="text" value="${esc(s.label)}" data-prop="label" class="props-input"></div>`;
         html += `<div class="props-row"><label>Afficher</label><input type="checkbox" ${s.showLabel ? 'checked' : ''} id="chk-show-label"></div>`;
       }
       if (s.type === 'point') {
@@ -679,8 +687,8 @@ export function initMap(container) {
     html += '<div class="shape-list">';
     for (const s of store.getAll()) {
       html += `<div class="shape-item ${s.selected ? 'selected' : ''}" data-id="${s.id}">
-        <span class="shape-color-dot" style="background:${s.color}"></span>
-        <span class="shape-label">${TYPE_LABELS[s.type] || s.type} #${s.id}${s.label ? ' — ' + s.label : ''}</span>
+        <span class="shape-color-dot" style="background:${esc(s.color)}"></span>
+        <span class="shape-label">${TYPE_LABELS[s.type] || s.type} #${s.id}${s.label ? ' — ' + esc(s.label) : ''}</span>
         <button class="shape-vis ${s.visible ? '' : 'hidden'}" data-vis="${s.id}" title="Visibilité">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>

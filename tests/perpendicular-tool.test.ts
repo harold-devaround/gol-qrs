@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ShapeStore } from '../js/map/store.ts';
 import { PerpendicularTool } from '../js/map/tools/perpendicular.ts';
-import { projectOnLine } from '../js/utils/geometry.ts';
 
 /* ── helpers ──────────────────────────────────────────── */
 
@@ -13,7 +12,7 @@ function makeCtx(store) {
       el: { style: {} },
       zoom: 1,
       requestRender: vi.fn(),
-      findSnap: vi.fn((_pt, _shapes) => null), // no snap by default
+      findSnap: vi.fn(() => null), // no snap by default
       currentSnap: null,
     },
     history: { save: vi.fn() },

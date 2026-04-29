@@ -1,9 +1,17 @@
-// @ts-nocheck
 /**
  * Simple image gallery viewer — grid of clickable thumbnails with
  * a lightbox for full-size viewing. No drawing tools.
  */
-export function initImageViewer(container, { title, images }) {
+interface GalleryImage {
+  name: string;
+  thumb: string;
+  full: string;
+}
+
+export function initImageViewer(
+  container: Element,
+  { title, images }: { title: string; images: GalleryImage[] }
+): void {
   container.innerHTML = `
     <div class="viewer">
       <div class="viewer-header">
@@ -13,7 +21,7 @@ export function initImageViewer(container, { title, images }) {
       <div class="viewer-grid"></div>
     </div>`;
 
-  const grid = container.querySelector('.viewer-grid');
+  const grid = container.querySelector('.viewer-grid')!;
 
   for (const img of images) {
     const card = document.createElement('div');
@@ -26,7 +34,7 @@ export function initImageViewer(container, { title, images }) {
   }
 
   // ── Lightbox ──────────────────────────────────────────
-  function openLightbox(img) {
+  function openLightbox(img: GalleryImage): void {
     const existing = container.querySelector('.viewer-lightbox');
     if (existing) existing.remove();
 
@@ -40,13 +48,13 @@ export function initImageViewer(container, { title, images }) {
         <span class="lb-label">${img.name}</span>
       </div>`;
 
-    const closeLb = () => { lb.remove(); document.removeEventListener('keydown', onKey); };
-    lb.querySelector('.lb-backdrop').addEventListener('click', closeLb);
-    lb.querySelector('.lb-close').addEventListener('click', closeLb);
+    const closeLb = (): void => { lb.remove(); document.removeEventListener('keydown', onKey); };
+    lb.querySelector('.lb-backdrop')!.addEventListener('click', closeLb);
+    lb.querySelector('.lb-close')!.addEventListener('click', closeLb);
     container.appendChild(lb);
 
     // Escape key to close
-    const onKey = (e) => { if (e.key === 'Escape') closeLb(); };
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') closeLb(); };
     document.addEventListener('keydown', onKey);
   }
 }

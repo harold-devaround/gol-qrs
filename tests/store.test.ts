@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
 import { ShapeStore } from '../js/map/store.ts';
+import { createPoint, syncNextId } from '../js/map/shapes.ts';
 
 const makeShape = (id, extra = {}) => ({
   id,
@@ -155,6 +156,46 @@ describe('ShapeStore', () => {
       s.update('a', { x: 99 });
       // snap should still be [{ x: 1, ... }]
       expect(snap[0].x).toBe(1);
+    });
+  });
+
+  describe('ID lifecycle (gap-fill after clear / restore)', () => {
+    it('clear releases IDs so newly added shapes can reuse them', () => {
+      syncNextId([]);                       // start from a clean ID pool
+      const s = new ShapeStore();
+      const a = createPoint(0, 0); s.add(a);
+      const b = createPoint(1, 1); s.add(b);
+      expect([a.id, b.id]).toEqual([1, 2]);
+      s.clear();
+      // After clear, IDs 1 & 2 should be free again — gap-fill restarts at 1.
+      const c = createPoint(2, 2); s.add(c);
+      expect(c.id).toBe(1);
+    });
+
+    it('restore re-syncs the global ID pool so freed IDs are reusable after undo', () => {
+      syncNextId([]);
+      const s = new ShapeStore();
+      const a = createPoint(0, 0); s.add(a); // id 1
+      const snap = s.snapshot();             // contains [id:1]
+      const b = createPoint(1, 1); s.add(b); // id 2
+      // Undo back to snapshot: only id 1 in the store; id 2 must be released.
+      s.restore(snap);
+      const c = createPoint(2, 2);
+      // Must NOT collide with surviving id 1, but must reuse the now-free id 2.
+      expect(c.id).toBe(2);
+    });
+
+    it('restore frees IDs that are no longer in the snapshot', () => {
+      syncNextId([]);
+      const s = new ShapeStore();
+      const a = createPoint(0, 0); s.add(a); // id 1
+      const b = createPoint(1, 1); s.add(b); // id 2
+      const c = createPoint(2, 2); s.add(c); // id 3
+      // Snapshot containing only id 2 — restoring drops ids 1 and 3.
+      s.restore([{ ...b }]);
+      const d = createPoint(3, 3);
+      // First gap-fill should pick id 1 (lowest free).
+      expect(d.id).toBe(1);
     });
   });
 });
