@@ -53,9 +53,9 @@ tests/
   segment-tool.test.ts       ← 11 tests (création, cancel, régression curseur fantôme, hasMoved)
   perpendicular-tool.test.ts ← 24 tests
   tab-router.test.ts         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
-  fabric-canvas-touch.test.ts← 42 tests (jsdom, tap/drag/pinch detection, hasMoved)
+  fabric-canvas-touch.test.ts← 53 tests (jsdom, tap/drag/pinch detection, hasMoved, mobile tap world coordinate regression)
   gps-calibration.test.ts    ← 97 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance + GPS accuracy with midpoint-shifted ticks)
-  TOTAL                      ← 433 tests (includes 42 jsdom)
+  TOTAL                      ← 444 tests (includes 53 jsdom)
 ```
 
 ## Stack technique
@@ -110,7 +110,7 @@ tests/
 ## Commandes
 
 ```bash
-npm test              # npx vitest run — lance les 433 tests
+npm test              # npx vitest run — lance les 444 tests
 npm run test:watch    # vitest en mode watch
 npm run test:coverage # vitest avec rapport de couverture (v8)
 npm run typecheck     # tsc --noEmit — vérification TypeScript
@@ -182,4 +182,5 @@ Le cœur de l'application est **Fabric.js** (rendu canvas, 11 outils de dessin),
 | 2026-04-29| Audit complet : (1) `ShapeStore.restore()` re-synchronise désormais le pool d'IDs (`syncNextId`) et `clear()` libère explicitement les IDs — corrige un bug de fuite d'IDs après undo/clear ; (2) `save-manager._readAll()` valide la forme des données — résiste aux entrées localStorage corrompues (chaînes, tableaux, slots invalides) ; (3) Helper `esc()` introduit dans `map-section.ts` pour échapper les chaînes contrôlées par l'utilisateur (labels de formes, noms de slots) interpolées en HTML — corrige un risque d'injection HTML/CSS ; (4) Suppression `@ts-nocheck` de tab-router.ts, qr-section.ts, image-viewer.ts (typage propre) ; (5) eslint.config.js : règles `ban-ts-comment` et `no-unused-vars` ajustées pour s'aligner sur les conventions du projet. 433 tests, lint ✓, typecheck ✓. |
 | 2026-04-29| Suite audit PR #24 (follow-up "Out of scope") : pipeline de build TS→JS pour rendre l'app exécutable dans le navigateur. Tous les imports relatifs `.ts` réécrits en `.js` (résolution `.js`→`.ts` côté tsc/Vitest, fichier réel côté navigateur). Nouveau `tsconfig.build.json` (extends `tsconfig.json`, `noEmit:false`, `outDir: dist`). Script `npm run build` ajouté ; `npm run check` enchaîne désormais typecheck + test + build. `index.html` charge maintenant `dist/app.js` (séparation source `js/` vs émission `dist/`). `.gitignore` exclut `dist/`. 433 tests inchangés, typecheck ✓, lint ✓, build ✓. |
 | 2026-04-29| Fix « rien ne s'affiche sur le premier tab + tabs morts » : ajout du script `postinstall` (`tsc -p tsconfig.build.json`) dans `package.json`. `dist/` étant gitignoré, après un `git clone` + `npm install`, `dist/app.js` n'existait pas → 404 sur le module ES → aucun JS n'était exécuté (section QR vide, listeners de tabs jamais attachés). Désormais `npm install` régénère automatiquement `dist/`. 433 tests inchangés, typecheck ✓, lint ✓. |
+| 2026-04-29| Fix « tous les outils sur mobile placent les formes très loin du tap, parfois en dehors de la map » : sur tap tactile, `MapCanvas` bufferisait correctement la position du `mousedown` (touchstart), mais ré-émettait le `mouseup` avec un `wp` recalculé à partir des coordonnées du `pointerup`/`touchend` — qui peuvent être absentes ou nulles (`e.clientX === 0` n'est pas écarté par `??`). Comme **tous les outils de dessin** (Point, Segment, Line, Circle, Triangle, Angle, Median, Bisector, Parallel, Perpendicular) lisent `wp` dans `onMouseUp`, ils créaient leurs formes au mauvais endroit, parfois en dehors de la carte (offset canvas projeté en monde). Correctifs : (1) `mouse:up` réutilise désormais la position bufferisée (`pending.screen`/`pending.world`) pour ÉMETTRE et `mousedown` ET `mouseup` sur un tap — la forme est créée exactement où le doigt s'est posé. (2) `_canvasXY` lit en priorité `touches[0]`/`changedTouches[0]` (touchend pattern) avant `e.clientX` pour gérer les `TouchEvent` sans coordonnées. 11 nouveaux tests de régression dans `fabric-canvas-touch.test.ts` (444 tests au total), typecheck ✓. |
 | 2026-04-29| Fix « onglet MHF cassé : carte non affichée + boîte à outils indispo » : `postinstall` ne lançait que `tsc` et omettait la copie de `dist/vendor/fabric.js`. Conséquence : 404 sur `<script src="dist/vendor/fabric.js">` → `fabric` indéfini → `MapSection` plantait à l'init → ni canvas ni toolbar. Correction : `postinstall` appelle désormais `npm run build` (tsc + copie fabric). Tout le code source est déjà en TypeScript (aucun `.js` dans `js/` ni `tests/`). 433 tests inchangés, typecheck ✓. |
