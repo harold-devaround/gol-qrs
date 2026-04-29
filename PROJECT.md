@@ -61,9 +61,11 @@ tests/
 
 | Élément      | Version | Usage                                       |
 |-------------|---------|---------------------------------------------|
+| TypeScript  | 6.0.x   | Typage statique (`npm run typecheck`)        |
 | Fabric.js   | 7.2.0   | Rendu canvas, chargé via `<script>` UMD     |
-| Vitest      | 4.1.4   | Framework de test (`npx vitest run`)         |
-| TypeScript  | 6.0.x   | Typage statique (`npx tsc --noEmit`)         |
+| Vitest      | 4.1.4   | Framework de test (`npm test`)               |
+| @vitest/coverage-v8 | 4.1.x | Couverture de code (`npm run test:coverage`) |
+| typescript-eslint | 8.x | Linting TypeScript (`npm run lint`)        |
 | ES Modules  | —       | `"type": "module"` dans package.json        |
 | Pas de bundler | —    | Fichiers servis directement                 |
 
@@ -152,3 +154,4 @@ npm run check         # typecheck + test (CI complet)
 | 2026-04-29| Validation étapes intermédiaires sur levé de doigt : tous les outils de dessin (Point, Segment, Droite, Cercle, Triangle, Médiane, Médiatrice, Angle, Parallèle, Perpendiculaire) valident les étapes dans `onMouseUp` avec garde `hasMoved`, non plus dans `onMouseDown`. `fabric-canvas.js` émet `hasMoved` dans `mouseup` (touch + souris). Évite les validations indésirées lors d'un déplacement/zoom. 414 tests |
 | 2026-04-28| Amélioration UX mobile : détection tap vs drag pour touch unique — `mousedown` bufferisé jusqu'au levé de doigt (tap = pas de déplacement) ou au franchissement du seuil de 10px (drag). Plus d'ajout accidentel de points en dessinant. Pinch 2 doigts annule le tap en attente (plus de sélection accidentelle). jsdom installé, 403 tests |
 | —         | Migration TypeScript : renommage .js → .ts (sources + tests), tsconfig.json, vitest.config.ts, eslint.config.js, js/types.ts (interfaces Shape/Point/Rect). `// @ts-nocheck` sur fichiers existants (approche progressive). Scripts npm : typecheck, lint, check, test:coverage. 414 tests, tsc --noEmit ✓ |
+| 2026-04-29| Typage strict : suppression `@ts-nocheck` de events.ts, geometry.ts, store.ts, history.ts, measurement.ts, save-manager.ts. Types propres avec imports depuis types.ts. 414 tests, tsc --noEmit ✓. copilot-instructions.md mis à jour avec workflow qualité obligatoire (test + typecheck + coverage). |

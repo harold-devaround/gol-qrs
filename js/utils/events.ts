@@ -1,22 +1,21 @@
-// @ts-nocheck
+type Listener = (...args: unknown[]) => void;
+
 /**
  * Lightweight EventEmitter for inter-module communication.
  */
 export class EventEmitter {
-  constructor() {
-    this._e = {};
-  }
+  private _e: Record<string, Set<Listener>> = {};
 
-  on(evt, fn) {
+  on(evt: string, fn: Listener): () => void {
     (this._e[evt] ??= new Set()).add(fn);
     return () => this.off(evt, fn);
   }
 
-  off(evt, fn) {
+  off(evt: string, fn: Listener): void {
     this._e[evt]?.delete(fn);
   }
 
-  emit(evt, ...args) {
+  emit(evt: string, ...args: unknown[]): void {
     this._e[evt]?.forEach(fn => fn(...args));
   }
 }

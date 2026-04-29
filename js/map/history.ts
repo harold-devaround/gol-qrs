@@ -1,11 +1,17 @@
-// @ts-nocheck
 import { EventEmitter } from '../utils/events.ts';
+import type { ShapeStore } from './store.ts';
+import type { Shape } from '../types.ts';
 
 /**
  * Snapshot-based undo / redo history.
  */
 export class History extends EventEmitter {
-  constructor(store) {
+  private store: ShapeStore;
+  private undoStack: Shape[][];
+  private redoStack: Shape[][];
+  private max: number;
+
+  constructor(store: ShapeStore) {
     super();
     this.store = store;
     this.undoStack = [];
@@ -14,27 +20,27 @@ export class History extends EventEmitter {
   }
 
   /** Call BEFORE mutating the store. */
-  save() {
+  save(): void {
     this.undoStack.push(this.store.snapshot());
     if (this.undoStack.length > this.max) this.undoStack.shift();
     this.redoStack = [];
     this.emit('change');
   }
 
-  undo() {
+  undo(): void {
     if (!this.canUndo) return;
     this.redoStack.push(this.store.snapshot());
-    this.store.restore(this.undoStack.pop());
+    this.store.restore(this.undoStack.pop()!);
     this.emit('change');
   }
 
-  redo() {
+  redo(): void {
     if (!this.canRedo) return;
     this.undoStack.push(this.store.snapshot());
-    this.store.restore(this.redoStack.pop());
+    this.store.restore(this.redoStack.pop()!);
     this.emit('change');
   }
 
-  get canUndo() { return this.undoStack.length > 0; }
-  get canRedo() { return this.redoStack.length > 0; }
+  get canUndo(): boolean { return this.undoStack.length > 0; }
+  get canRedo(): boolean { return this.redoStack.length > 0; }
 }

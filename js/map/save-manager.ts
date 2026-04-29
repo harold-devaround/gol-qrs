@@ -1,4 +1,5 @@
-// @ts-nocheck
+import type { Shape } from '../types.ts';
+
 /**
  * Multi-slot save system using localStorage.
  * Each save is a named snapshot of the full shape store state.
@@ -7,18 +8,27 @@
 const STORAGE_KEY = 'gol-qrs-saves';
 const OPTIONS_KEY = 'gol-qrs-options';
 
-function _readAll() {
+interface SaveSlot {
+  shapes: Shape[];
+  date: number;
+}
+
+interface SavesMap {
+  [name: string]: SaveSlot;
+}
+
+function _readAll(): SavesMap {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') || {};
   } catch { return {}; }
 }
 
-function _writeAll(saves) {
+function _writeAll(saves: SavesMap): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
 }
 
 /** List all saved slots: [{ name, date, count }] sorted by date desc. */
-export function listSaves() {
+export function listSaves(): Array<{ name: string; date: number; count: number }> {
   const saves = _readAll();
   return Object.entries(saves)
     .map(([name, data]) => ({ name, date: data.date, count: data.shapes.length }))
@@ -26,28 +36,28 @@ export function listSaves() {
 }
 
 /** Save current shapes under a given name (overwrites if exists). */
-export function saveSlot(name, shapes) {
+export function saveSlot(name: string, shapes: Shape[]): void {
   const saves = _readAll();
   saves[name] = { shapes: JSON.parse(JSON.stringify(shapes)), date: Date.now() };
   _writeAll(saves);
 }
 
 /** Load shapes from a named slot. Returns the array or null. */
-export function loadSlot(name) {
+export function loadSlot(name: string): Shape[] | null {
   const saves = _readAll();
   const slot = saves[name];
   return slot ? JSON.parse(JSON.stringify(slot.shapes)) : null;
 }
 
 /** Delete a named slot. */
-export function deleteSlot(name) {
+export function deleteSlot(name: string): void {
   const saves = _readAll();
   delete saves[name];
   _writeAll(saves);
 }
 
 /** Rename a slot. */
-export function renameSlot(oldName, newName) {
+export function renameSlot(oldName: string, newName: string): void {
   if (oldName === newName) return;
   const saves = _readAll();
   if (!saves[oldName]) return;
@@ -57,12 +67,12 @@ export function renameSlot(oldName, newName) {
 }
 
 /** Save user options (unit mode, calibration mode, snap, etc.). */
-export function saveOptions(opts) {
+export function saveOptions(opts: Record<string, unknown>): void {
   localStorage.setItem(OPTIONS_KEY, JSON.stringify(opts));
 }
 
 /** Load user options. Returns the object or null. */
-export function loadOptions() {
+export function loadOptions(): Record<string, unknown> | null {
   try {
     const raw = localStorage.getItem(OPTIONS_KEY);
     return raw ? JSON.parse(raw) : null;
