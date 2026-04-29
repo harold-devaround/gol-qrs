@@ -15,7 +15,8 @@ export class PointTool extends ToolBase {
 
   activate() { this.canvas.el.style.cursor = 'crosshair'; }
 
-  onMouseDown(wp) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     const pt = this.snap(wp);
     const label = LABELS[_labelIdx++ % LABELS.length];
     this.addShape(createPoint(pt.x, pt.y, { label }));

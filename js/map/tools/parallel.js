@@ -34,7 +34,8 @@ export class ParallelTool extends ToolBase {
     return projectOnLine(cursor, this._start, b);
   }
 
-  onMouseDown(wp) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     if (!this._ref) {
       // Step 1: pick a line or segment as direction reference
       const threshold = 8 / this.canvas.zoom;

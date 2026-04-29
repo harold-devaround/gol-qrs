@@ -16,7 +16,8 @@ export class CircleTool extends ToolBase {
   activate() { this.canvas.el.style.cursor = 'crosshair'; }
   cancel() { this._center = null; this._cursor = null; this.dirty(); }
 
-  onMouseDown(wp) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     const pt = this.snap(wp);
     if (!this._center) {
       this._center = pt;

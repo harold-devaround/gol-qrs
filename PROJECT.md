@@ -49,11 +49,11 @@ tests/
   history.test.js            ← 12 tests
   save-manager.test.js       ← 15 tests
   select-tool.test.js        ← 8 tests
-  perpendicular-tool.test.js ← 20 tests
+  perpendicular-tool.test.js ← 24 tests
   tab-router.test.js         ← 19 tests (activation, visibilité, lazy-init, isolation erreurs)
-  fabric-canvas-touch.test.js← 35 tests (jsdom, tap/drag/pinch detection)
+  fabric-canvas-touch.test.js← 42 tests (jsdom, tap/drag/pinch detection, hasMoved)
   gps-calibration.test.js    ← 97 tests (interpolateLatY + buildGradGrid + calibration 1°-résolution + scan constants coverage + synthetic detection count + expected counts 361/181 + linear-tick variance + GPS accuracy with midpoint-shifted ticks)
-  TOTAL                      ← 403 tests (includes 35 jsdom)
+  TOTAL                      ← 414 tests (includes 42 jsdom)
 ```
 
 ## Stack technique
@@ -105,7 +105,7 @@ tests/
 ## Commandes
 
 ```bash
-npm test           # npx vitest run — lance les 324 tests
+npm test           # npx vitest run — lance les 414 tests
 npm run test:watch # vitest en mode watch
 ```
 
@@ -144,4 +144,5 @@ npm run test:watch # vitest en mode watch
 | 2026-04-27| Fix zone détection graduations : LON_Y0=90/LON_H=18 (y=90-108, ± mapTop≈105), LAT_X0=120/LAT_W=32 (x=120-152), corner exclusion LAT 100→5 px. LAT_EXPECTED 161→181 (±90°). Variance check sur R-values dans computeCalibration (évite corruption mercRadius par ticks linéaires). mercRadiusOk resserré 400-1000→550-760. Export LON/LAT_EXPECTED. 8 nouveaux tests (+4 counts + 2 linear-tick + 2 symmetric top/bottom + left/right). 324 tests |
 | 2026-04-28| Fix affichage onglet 1 + changement d'onglets cassés : extraction `tab-router.js` (logique testable + try-catch isolation), imports dynamiques dans `app.js` (un module cassé ne bloque plus l'app), `initialized['qr']` pré-renseigné. 19 nouveaux tests. 366 tests |
 | 2026-04-28| Fix centrage graduation GPS : `findTickCenters` utilise désormais le milieu géométrique `(from+to)/2` (midpoint) au lieu du centroïde pondéré. Corrige un décalage de 1–2 px : les traits de grille passent maintenant par le centre de l'épaisseur de la graduation. GPS inchangé (mapWidth non affecté). 368 tests |
+| 2026-04-29| Validation étapes intermédiaires sur levé de doigt : tous les outils de dessin (Point, Segment, Droite, Cercle, Triangle, Médiane, Médiatrice, Angle, Parallèle, Perpendiculaire) valident les étapes dans `onMouseUp` avec garde `hasMoved`, non plus dans `onMouseDown`. `fabric-canvas.js` émet `hasMoved` dans `mouseup` (touch + souris). Évite les validations indésirées lors d'un déplacement/zoom. 414 tests |
 | 2026-04-28| Amélioration UX mobile : détection tap vs drag pour touch unique — `mousedown` bufferisé jusqu'au levé de doigt (tap = pas de déplacement) ou au franchissement du seuil de 10px (drag). Plus d'ajout accidentel de points en dessinant. Pinch 2 doigts annule le tap en attente (plus de sélection accidentelle). jsdom installé, 403 tests |

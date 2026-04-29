@@ -16,7 +16,8 @@ export class SegmentTool extends ToolBase {
 
   cancel() { this._p1 = null; this._cursor = null; this.dirty(); }
 
-  onMouseDown(wp, e) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     const pt = this.snap(wp);
     if (!this._p1) {
       this._p1 = pt;

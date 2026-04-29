@@ -20,7 +20,8 @@ export class AngleTool extends ToolBase {
   activate() { this.canvas.el.style.cursor = 'crosshair'; }
   cancel() { this._pts = []; this._cursor = null; this.dirty(); }
 
-  onMouseDown(wp) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     const pt = this.snap(wp);
     this._pts.push(pt);
     if (this._pts.length === 3) {

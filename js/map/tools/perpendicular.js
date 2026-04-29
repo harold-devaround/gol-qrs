@@ -56,7 +56,8 @@ export class PerpendicularTool extends ToolBase {
     return projectOnLine(pt, this._start, perpP2);
   }
 
-  onMouseDown(wp) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     if (!this._ref) {
       // Phase 1: pick a line or segment as reference
       const threshold = 8 / this.canvas.zoom;

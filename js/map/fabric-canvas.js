@@ -63,6 +63,10 @@ export class MapCanvas extends EventEmitter {
     this._touchStartScreen = null;  // { x, y } — screen position at touchstart
     this._touchMoved = false;       // true once touch moved beyond tap threshold
 
+    // Click detection for non-touch: track movement between mousedown and mouseup
+    this._mouseDownScreen = null;   // { x, y } — screen position at mousedown
+    this._mouseHasMoved = false;    // true once cursor moved beyond tap threshold after mousedown
+
     this._setupResize();
     this._setupEvents();
     this._setupKeyboard();
@@ -284,6 +288,8 @@ export class MapCanvas extends EventEmitter {
         return;
       }
 
+      this._mouseDownScreen = { x: sx, y: sy };
+      this._mouseHasMoved = false;
       const wp = this.toWorld(sx, sy);
       this.emit('mousedown', { screen: { x: sx, y: sy }, world: wp, event: e });
     });
@@ -312,6 +318,14 @@ export class MapCanvas extends EventEmitter {
         }
       }
 
+      // Non-touch: track whether the mouse has moved significantly since mousedown
+      if (e.pointerType !== 'touch' && this._mouseDownScreen && !this._mouseHasMoved) {
+        const ds = this._mouseDownScreen;
+        if (Math.hypot(sx - ds.x, sy - ds.y) > MapCanvas.TOUCH_TAP_THRESHOLD) {
+          this._mouseHasMoved = true;
+        }
+      }
+
       const wp = this.toWorld(sx, sy);
       this.emit('mousemove', { screen: { x: sx, y: sy }, world: wp, event: e });
     });
@@ -329,6 +343,8 @@ export class MapCanvas extends EventEmitter {
       const wp = this.toWorld(sx, sy);
 
       if (e.pointerType === 'touch') {
+        // Capture hasMoved before resetting state
+        const hasMoved = this._touchMoved;
         if (this._pendingTouchDown) {
           // Tap (no significant movement): fire mousedown at tap position, then mouseup.
           const d = this._pendingTouchDown;
@@ -338,11 +354,14 @@ export class MapCanvas extends EventEmitter {
         this._pendingTouchDown = null;
         this._touchStartScreen = null;
         this._touchMoved = false;
-        this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e });
+        this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e, hasMoved });
         return;
       }
 
-      this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e });
+      const hasMoved = this._mouseHasMoved;
+      this._mouseHasMoved = false;
+      this._mouseDownScreen = null;
+      this.emit('mouseup', { screen: { x: sx, y: sy }, world: wp, event: e, hasMoved });
     });
 
     // Mouse wheel → zoom
