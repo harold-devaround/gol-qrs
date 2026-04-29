@@ -114,11 +114,31 @@ npm test              # npx vitest run — lance les 433 tests
 npm run test:watch    # vitest en mode watch
 npm run test:coverage # vitest avec rapport de couverture (v8)
 npm run typecheck     # tsc --noEmit — vérification TypeScript
-npm run build         # tsc -p tsconfig.build.json — émet dist/**/*.js (consommé par index.html)
+npm run build         # tsc -p tsconfig.build.json → dist/ + copie dist/vendor/fabric.js
 npm run check         # typecheck + test + build (CI complet)
 # Note : `npm install` exécute automatiquement `postinstall` → `npm run build`,
 # de sorte que `dist/` est toujours présent après une installation fraîche.
 ```
+
+## Déploiement Render (Static Site)
+
+L'application est une SPA statique. Aucun serveur Node.js n'est requis.
+
+| Paramètre Render    | Valeur                              |
+|--------------------|--------------------------------------|
+| **Type**           | Static Site                          |
+| **Build Command**  | `npm ci`                             |
+| **Publish Directory** | `.`                               |
+
+`npm ci` déclenche automatiquement `postinstall` → `npm run build` (TypeScript + copie `dist/vendor/fabric.js`).
+
+### Pourquoi pas React Router / Mantine ?
+
+Le cœur de l'application est **Fabric.js** (rendu canvas, 11 outils de dessin), qui manipule le DOM de manière directe et impérative. React's virtual DOM est fondamentalement incompatible avec cette approche. L'architecture vanilla TypeScript + tab-router.ts est :
+- Adaptée au cas d'usage (4 onglets simples)
+- Testée (19 tests de routage)
+- Sans surcoût de bundle React (~40 kB gzip)
+- Compatible avec Fabric.js sans conflits DOM
 
 ## Historique des modifications
 
