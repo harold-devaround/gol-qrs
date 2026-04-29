@@ -21,8 +21,10 @@ export function initQR(container) {
     .then(r => r.json())
     .then(data => setup(container, data))
     .catch(err => {
-      container.querySelector('#qr-list').innerHTML =
-        `<p style="color:#e74c3c;padding:2rem">Erreur de chargement : ${err.message}</p>`;
+      const p = document.createElement('p');
+      p.style.cssText = 'color:#e74c3c;padding:2rem';
+      p.textContent = `Erreur de chargement : ${err.message}`;
+      container.querySelector('#qr-list').replaceChildren(p);
     });
 }
 
