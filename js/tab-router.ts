@@ -1,23 +1,28 @@
-// @ts-nocheck
 /**
  * Tab router — manages the navigation between app sections.
  *
  * Extracted from app.js so the routing logic can be unit-tested
  * independently of the browser environment.
- *
- * @param {Element[]} tabs         - Tab button elements (must have data-section attribute)
- * @param {Element[]} sections     - Section elements (must have id="section-{name}")
- * @param {Object}    inits        - Map of section name → init function(el). May be async.
- * @param {string[]}  [alreadyInited] - Section names already initialized before this call.
- *                                    Their init function will NOT be called on first click.
- * @returns {{ initialized: Object }} - The initialization tracking state (for introspection/tests)
  */
-export function initTabRouter(tabs, sections, inits, alreadyInited = []) {
-  const initialized = Object.fromEntries(alreadyInited.map(k => [k, true]));
+
+interface TabRouterResult {
+  initialized: Record<string, boolean>;
+}
+
+type InitFn = (el: Element) => unknown | Promise<unknown>;
+
+export function initTabRouter(
+  tabs: Element[],
+  sections: Element[],
+  inits: Record<string, InitFn>,
+  alreadyInited: string[] = []
+): TabRouterResult {
+  const initialized: Record<string, boolean> = Object.fromEntries(alreadyInited.map(k => [k, true]));
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      const target = tab.dataset.section;
+      const target = (tab as HTMLElement).dataset.section;
+      if (!target) return;
 
       // Toggle active class on tabs
       tabs.forEach(t => t.classList.toggle('active', t === tab));

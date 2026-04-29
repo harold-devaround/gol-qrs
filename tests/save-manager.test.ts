@@ -130,4 +130,40 @@ describe('save-manager', () => {
       expect(loadOptions().mode).toBe('px');
     });
   });
+
+  describe('corrupt storage handling', () => {
+    it('returns empty list when storage value is invalid JSON', () => {
+      store['gol-qrs-saves'] = '{not json';
+      expect(listSaves()).toEqual([]);
+      expect(loadSlot('any')).toBeNull();
+    });
+
+    it('returns empty list when storage value is a primitive (not an object)', () => {
+      store['gol-qrs-saves'] = JSON.stringify('hello');
+      expect(listSaves()).toEqual([]);
+      expect(loadSlot('any')).toBeNull();
+    });
+
+    it('returns empty list when storage value is an array', () => {
+      store['gol-qrs-saves'] = JSON.stringify([1, 2, 3]);
+      expect(listSaves()).toEqual([]);
+    });
+
+    it('skips slot entries with no shapes array', () => {
+      store['gol-qrs-saves'] = JSON.stringify({
+        bad:  { date: 1 },                                      // missing shapes
+        also: { shapes: 'not an array', date: 2 },
+        good: { shapes: [{ id: 1 }], date: 3 },
+      });
+      const list = listSaves();
+      expect(list).toHaveLength(1);
+      expect(list[0].name).toBe('good');
+      expect(loadSlot('bad')).toBeNull();
+    });
+
+    it('deleteSlot does not throw when storage is corrupt', () => {
+      store['gol-qrs-saves'] = '{not json';
+      expect(() => deleteSlot('foo')).not.toThrow();
+    });
+  });
 });

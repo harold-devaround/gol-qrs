@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { initTabRouter } from '../js/tab-router.ts';
 
 /* ── DOM helpers ──────────────────────────────────────────── */
@@ -10,7 +10,7 @@ function makeTab(section, active = false) {
   return {
     dataset: { section },
     classList: {
-      toggle(cls, force) { force ? classes.add(cls) : classes.delete(cls); },
+      toggle(cls, force) { if (force) classes.add(cls); else classes.delete(cls); },
       contains(cls) { return classes.has(cls); },
     },
     addEventListener(event, fn) { listeners[event] = fn; },
@@ -23,7 +23,7 @@ function makeSection(name, active = false) {
   return {
     id: `section-${name}`,
     classList: {
-      toggle(cls, force) { force ? classes.add(cls) : classes.delete(cls); },
+      toggle(cls, force) { if (force) classes.add(cls); else classes.delete(cls); },
       contains(cls) { return classes.has(cls); },
     },
   };

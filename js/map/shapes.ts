@@ -4,7 +4,7 @@
  * Shapes are plain objects — no classes — for trivial serialization.
  */
 import {
-  distance, midpoint, angleDeg,
+  distance, angleDeg,
   pointToSegmentDist, pointToLineDist,
   clipLineToRect,
   triangleArea, pointInTriangle,
@@ -197,7 +197,7 @@ const RENDERERS = {
     if (s.label && s.showLabel) drawLabel(ctx, s.label, mid.x, mid.y, s.color, 0, -20);
   },
 
-  line(ctx, s, vp, m) {
+  line(ctx, s, vp, _m) {
     const rect = vp.worldRect();
     const clipped = clipLineToRect(s.p1, s.p2, rect);
     if (!clipped) return;
@@ -268,7 +268,7 @@ const RENDERERS = {
     }
   },
 
-  angle(ctx, s, vp, m) {
+  angle(ctx, s, vp, _m) {
     const a = vp.toScreen(s.p1.x, s.p1.y);
     const v = vp.toScreen(s.vertex.x, s.vertex.y);
     const b = vp.toScreen(s.p2.x, s.p2.y);
@@ -318,7 +318,7 @@ const RENDERERS = {
     drawLabel(ctx, m.format(len), mid.x, mid.y - 6, s.color);
   },
 
-  bisector(ctx, s, vp, m) {
+  bisector(ctx, s, vp, _m) {
     const rect = vp.worldRect();
     const clipped = clipLineToRect(s.p1, s.p2, rect);
     if (!clipped) return;

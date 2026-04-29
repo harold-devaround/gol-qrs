@@ -19,7 +19,16 @@ interface SavesMap {
 
 function _readAll(): SavesMap {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') || {};
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+    // Validate: must be a non-null plain object whose values look like SaveSlots.
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+    const out: SavesMap = {};
+    for (const [name, data] of Object.entries(raw as Record<string, unknown>)) {
+      if (data && typeof data === 'object' && Array.isArray((data as SaveSlot).shapes)) {
+        out[name] = data as SaveSlot;
+      }
+    }
+    return out;
   } catch { return {}; }
 }
 
