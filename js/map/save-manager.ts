@@ -1,4 +1,4 @@
-import type { Shape } from '../types.ts';
+import type { Shape } from '../types.js';
 
 /**
  * Multi-slot save system using localStorage.

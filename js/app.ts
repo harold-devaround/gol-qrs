@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { initQR } from './qr/qr-section.ts';
-import { initTabRouter } from './tab-router.ts';
+import { initQR } from './qr/qr-section.js';
+import { initTabRouter } from './tab-router.js';
 
 const CP_IMAGES = Array.from({ length: 10 }, (_, i) => ({
   name: `CP${i}`,

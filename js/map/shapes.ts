@@ -8,7 +8,7 @@ import {
   pointToSegmentDist, pointToLineDist,
   clipLineToRect,
   triangleArea, pointInTriangle,
-} from '../utils/geometry.ts';
+} from '../utils/geometry.js';
 
 /* ── ID & colour generators ───────────────────────────── */
 

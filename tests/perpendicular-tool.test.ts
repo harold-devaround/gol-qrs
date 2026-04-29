@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
-import { ShapeStore } from '../js/map/store.ts';
-import { PerpendicularTool } from '../js/map/tools/perpendicular.ts';
+import { ShapeStore } from '../js/map/store.js';
+import { PerpendicularTool } from '../js/map/tools/perpendicular.js';
 
 /* ── helpers ──────────────────────────────────────────── */
 

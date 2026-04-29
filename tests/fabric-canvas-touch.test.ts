@@ -1,7 +1,7 @@
 // @ts-nocheck
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MapCanvas } from '../js/map/fabric-canvas.ts';
+import { MapCanvas } from '../js/map/fabric-canvas.js';
 
 /* ── PointerEvent polyfill (jsdom 26 doesn't ship it) ──── */
 if (!globalThis.PointerEvent) {

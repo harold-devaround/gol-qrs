@@ -1,6 +1,6 @@
-import { EventEmitter } from '../utils/events.ts';
-import type { ShapeStore } from './store.ts';
-import type { Shape } from '../types.ts';
+import { EventEmitter } from '../utils/events.js';
+import type { ShapeStore } from './store.js';
+import type { Shape } from '../types.js';
 
 /**
  * Snapshot-based undo / redo history.

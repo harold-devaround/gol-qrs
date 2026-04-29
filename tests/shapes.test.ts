@@ -5,8 +5,8 @@ import {
   createTriangle, createAngle, createMedian, createBisector,
   moveShape, shapeInfo, hitTestShape, renderShape, TYPE_LABELS,
   syncNextId, releaseId, generateConcentrics,
-} from '../js/map/shapes.ts';
-import { Measurement } from '../js/map/measurement.ts';
+} from '../js/map/shapes.js';
+import { Measurement } from '../js/map/measurement.js';
 
 /* ── Factories ────────────────────────────────────────── */
 

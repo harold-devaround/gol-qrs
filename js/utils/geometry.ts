@@ -1,4 +1,4 @@
-import type { Point, Rect, Shape } from '../types.ts';
+import type { Point, Rect, Shape } from '../types.js';
 
 /**
  * Core geometry math utilities.

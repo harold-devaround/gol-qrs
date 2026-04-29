@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createBisector, hitTestShape } from '../shapes.ts';
-import { midpoint, perpBisectorLine } from '../../utils/geometry.ts';
+import { ToolBase } from './base.js';
+import { createBisector, hitTestShape } from '../shapes.js';
+import { midpoint, perpBisectorLine } from '../../utils/geometry.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <line x1="4" y1="20" x2="20" y2="4"/><line x1="7" y1="7" x2="17" y2="17" stroke-dasharray="3 2"/>

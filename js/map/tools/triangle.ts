@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createTriangle } from '../shapes.ts';
+import { ToolBase } from './base.js';
+import { createTriangle } from '../shapes.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <path d="M12 3L3 21h18z"/>

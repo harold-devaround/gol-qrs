@@ -2,7 +2,7 @@
 /**
  * Abstract base for all drawing tools.
  */
-import { snapToAngle } from '../../utils/geometry.ts';
+import { snapToAngle } from '../../utils/geometry.js';
 
 export class ToolBase {
   constructor(name, icon, shortcut) {

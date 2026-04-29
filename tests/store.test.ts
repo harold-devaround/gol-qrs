@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
-import { ShapeStore } from '../js/map/store.ts';
-import { createPoint, syncNextId } from '../js/map/shapes.ts';
+import { ShapeStore } from '../js/map/store.js';
+import { createPoint, syncNextId } from '../js/map/shapes.js';
 
 const makeShape = (id, extra = {}) => ({
   id,

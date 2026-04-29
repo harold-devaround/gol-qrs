@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createSegment } from '../shapes.ts';
+import { ToolBase } from './base.js';
+import { createSegment } from '../shapes.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2" fill="currentColor"/><circle cx="19" cy="5" r="2" fill="currentColor"/>

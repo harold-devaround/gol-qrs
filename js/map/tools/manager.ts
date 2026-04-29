@@ -1,16 +1,16 @@
 // @ts-nocheck
-import { EventEmitter } from '../../utils/events.ts';
-import { SelectTool } from './select.ts';
-import { PointTool } from './point.ts';
-import { SegmentTool } from './segment.ts';
-import { LineTool } from './line.ts';
-import { CircleTool } from './circle.ts';
-import { TriangleTool } from './triangle.ts';
-import { MedianTool } from './median.ts';
-import { BisectorTool } from './bisector.ts';
-import { AngleTool } from './angle.ts';
-import { ParallelTool } from './parallel.ts';
-import { PerpendicularTool } from './perpendicular.ts';
+import { EventEmitter } from '../../utils/events.js';
+import { SelectTool } from './select.js';
+import { PointTool } from './point.js';
+import { SegmentTool } from './segment.js';
+import { LineTool } from './line.js';
+import { CircleTool } from './circle.js';
+import { TriangleTool } from './triangle.js';
+import { MedianTool } from './median.js';
+import { BisectorTool } from './bisector.js';
+import { AngleTool } from './angle.js';
+import { ParallelTool } from './parallel.js';
+import { PerpendicularTool } from './perpendicular.js';
 
 /**
  * Manages tool lifecycle, switching, and event dispatch.

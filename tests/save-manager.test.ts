@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest';
-import { listSaves, saveSlot, loadSlot, deleteSlot, renameSlot, saveOptions, loadOptions } from '../js/map/save-manager.ts';
+import { listSaves, saveSlot, loadSlot, deleteSlot, renameSlot, saveOptions, loadOptions } from '../js/map/save-manager.js';
 
 // Mock localStorage
 const store = {};

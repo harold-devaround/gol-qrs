@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createCircle } from '../shapes.ts';
-import { distance } from '../../utils/geometry.ts';
+import { ToolBase } from './base.js';
+import { createCircle } from '../shapes.js';
+import { distance } from '../../utils/geometry.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1" fill="currentColor"/>

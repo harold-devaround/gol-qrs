@@ -22,7 +22,7 @@ import {
   LAT_X0,
   LAT_W,
   LAT_X0_RIGHT,
-} from '../js/map/gps-calibration.ts';
+} from '../js/map/gps-calibration.js';
 
 describe('DEFAULT_CALIBRATION', () => {
   it('has expected calibration constants', () => {
