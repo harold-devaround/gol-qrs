@@ -570,3 +570,128 @@ describe('two-finger pinch clears pending touch tap', () => {
     expect(downSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('hasMoved flag in mouseup events', () => {
+  describe('touch tap (no movement) → hasMoved=false', () => {
+    it('touch tap emits mouseup with hasMoved=false', () => {
+      let upData = null;
+      mc.on('mouseup', (d) => { upData = d; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100 }) });
+      upHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100 }) });
+
+      expect(upData).not.toBeNull();
+      expect(upData.hasMoved).toBe(false);
+    });
+  });
+
+  describe('touch drag (movement > threshold) → hasMoved=true', () => {
+    it('touch drag emits mouseup with hasMoved=true', () => {
+      let upData = null;
+      mc.on('mouseup', (d) => { upData = d; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const moveHandler = getFabricHandler('mouse:move');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100 }) });
+      // Move beyond threshold (10px)
+      moveHandler({ e: makeFabricPointerEvent({ clientX: 115, clientY: 100 }) });
+      upHandler({ e: makeFabricPointerEvent({ clientX: 115, clientY: 100 }) });
+
+      expect(upData).not.toBeNull();
+      expect(upData.hasMoved).toBe(true);
+    });
+
+    it('touch move within threshold leaves hasMoved=false', () => {
+      let upData = null;
+      mc.on('mouseup', (d) => { upData = d; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const moveHandler = getFabricHandler('mouse:move');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100 }) });
+      // Move within threshold (5px)
+      moveHandler({ e: makeFabricPointerEvent({ clientX: 105, clientY: 100 }) });
+      upHandler({ e: makeFabricPointerEvent({ clientX: 105, clientY: 100 }) });
+
+      expect(upData.hasMoved).toBe(false);
+    });
+  });
+
+  describe('non-touch mouse click (no movement) → hasMoved=false', () => {
+    it('mouse click emits mouseup with hasMoved=false', () => {
+      let upData = null;
+      mc.on('mouseup', (d) => { upData = d; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 200, clientY: 200 }) });
+      upHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 200, clientY: 200 }) });
+
+      expect(upData).not.toBeNull();
+      expect(upData.hasMoved).toBe(false);
+    });
+  });
+
+  describe('non-touch mouse drag (movement > threshold) → hasMoved=true', () => {
+    it('mouse drag emits mouseup with hasMoved=true', () => {
+      let upData = null;
+      mc.on('mouseup', (d) => { upData = d; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const moveHandler = getFabricHandler('mouse:move');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 200, clientY: 200 }) });
+      // Move beyond threshold (10px)
+      moveHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 215, clientY: 200 }) });
+      upHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 215, clientY: 200 }) });
+
+      expect(upData).not.toBeNull();
+      expect(upData.hasMoved).toBe(true);
+    });
+
+    it('mouse move within threshold leaves hasMoved=false', () => {
+      let upData = null;
+      mc.on('mouseup', (d) => { upData = d; });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const moveHandler = getFabricHandler('mouse:move');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      downHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 200, clientY: 200 }) });
+      // Move within threshold (5px)
+      moveHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 205, clientY: 200 }) });
+      upHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 205, clientY: 200 }) });
+
+      expect(upData.hasMoved).toBe(false);
+    });
+
+    it('hasMoved resets between independent clicks', () => {
+      const upEvents = [];
+      mc.on('mouseup', (d) => { upEvents.push(d.hasMoved); });
+
+      const downHandler = getFabricHandler('mouse:down');
+      const moveHandler = getFabricHandler('mouse:move');
+      const upHandler   = getFabricHandler('mouse:up');
+
+      // First click: drag
+      downHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 100, clientY: 100 }) });
+      moveHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 120, clientY: 100 }) });
+      upHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 120, clientY: 100 }) });
+
+      // Second click: no movement
+      downHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 200, clientY: 200 }) });
+      upHandler({ e: makeFabricPointerEvent({ pointerType: 'mouse', clientX: 200, clientY: 200 }) });
+
+      expect(upEvents).toEqual([true, false]);
+    });
+  });
+});
+

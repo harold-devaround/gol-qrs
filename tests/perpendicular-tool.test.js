@@ -37,6 +37,12 @@ function makeLine(id, x1, y1, x2, y2) {
   };
 }
 
+/** Simulate a clean tap: mousedown then mouseup with no movement. */
+function tap(tool, wp) {
+  tool.onMouseDown(wp);
+  tool.onMouseUp(wp, undefined, false);
+}
+
 /* ── tests ────────────────────────────────────────────── */
 
 describe('PerpendicularTool', () => {
@@ -56,45 +62,68 @@ describe('PerpendicularTool', () => {
   });
 
   describe('Phase 1 — picking the reference', () => {
-    it('clicking on a segment picks it as reference', () => {
+    it('tapping on a segment picks it as reference', () => {
       const store = new ShapeStore();
       const seg = makeSegment(1, 0, 0, 100, 0); // horizontal segment
       store.add(seg);
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
 
-      tool.onMouseDown({ x: 50, y: 0 }); // click on the segment
+      tap(tool, { x: 50, y: 0 }); // tap on the segment
       expect(tool._ref).toBe(seg);
       expect(tool._start).toBeNull();
     });
 
-    it('clicking on a line picks it as reference', () => {
+    it('mousedown alone does not pick the reference (step validates on mouseup)', () => {
+      const store = new ShapeStore();
+      const seg = makeSegment(1, 0, 0, 100, 0);
+      store.add(seg);
+      const tool = new PerpendicularTool();
+      tool.ctx = makeCtx(store);
+
+      tool.onMouseDown({ x: 50, y: 0 });
+      expect(tool._ref).toBeNull(); // not yet picked — awaiting mouseup
+    });
+
+    it('drag (hasMoved=true) does not pick the reference', () => {
+      const store = new ShapeStore();
+      const seg = makeSegment(1, 0, 0, 100, 0);
+      store.add(seg);
+      const tool = new PerpendicularTool();
+      tool.ctx = makeCtx(store);
+
+      tool.onMouseDown({ x: 50, y: 0 });
+      tool.onMouseUp({ x: 50, y: 0 }, undefined, true); // drag: hasMoved=true
+      expect(tool._ref).toBeNull(); // drag must not pick ref
+    });
+
+    it('tapping on a line picks it as reference', () => {
       const store = new ShapeStore();
       const line = makeLine(2, 0, 0, 100, 0);
       store.add(line);
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
 
-      tool.onMouseDown({ x: 50, y: 1 }); // close enough to line
+      tap(tool, { x: 50, y: 1 }); // close enough to line
       expect(tool._ref).toBe(line);
     });
 
-    it('clicking on empty space does nothing', () => {
+    it('tapping on empty space does nothing', () => {
       const store = new ShapeStore();
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
 
-      tool.onMouseDown({ x: 500, y: 500 });
+      tap(tool, { x: 500, y: 500 });
       expect(tool._ref).toBeNull();
     });
 
-    it('clicking a non-line/segment shape does nothing', () => {
+    it('tapping a non-line/segment shape does nothing', () => {
       const store = new ShapeStore();
       store.add({ type: 'point', id: 3, x: 50, y: 50, color: '#f00', visible: true, selected: false });
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
 
-      tool.onMouseDown({ x: 50, y: 50 });
+      tap(tool, { x: 50, y: 50 });
       expect(tool._ref).toBeNull();
     });
   });
@@ -106,7 +135,7 @@ describe('PerpendicularTool', () => {
       store.add(seg);
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
-      tool.onMouseDown({ x: 50, y: 0 }); // pick seg as ref
+      tap(tool, { x: 50, y: 0 }); // pick seg as ref
       expect(tool._ref).toBe(seg);
       return { store, tool, seg };
     }
@@ -118,17 +147,24 @@ describe('PerpendicularTool', () => {
       expect(tool._previewStart).toMatchObject({ x: 30, y: 0 });
     });
 
-    it('click confirms start as projection of cursor on ref', () => {
+    it('tap confirms start as projection of cursor on ref', () => {
       const { tool } = setupWithRef();
       tool.onMouseMove({ x: 30, y: 40 });
-      tool.onMouseDown({ x: 30, y: 40 }); // step 2
+      tap(tool, { x: 30, y: 40 }); // step 2
       expect(tool._start).toMatchObject({ x: 30, y: 0 });
       expect(tool._ref).not.toBeNull(); // ref still held
     });
 
-    it('click confirms start even when cursor is exactly on the ref', () => {
+    it('drag during phase 2 does not set start', () => {
       const { tool } = setupWithRef();
-      tool.onMouseDown({ x: 60, y: 0 });
+      tool.onMouseDown({ x: 30, y: 40 });
+      tool.onMouseUp({ x: 30, y: 40 }, undefined, true); // drag
+      expect(tool._start).toBeNull();
+    });
+
+    it('tap confirms start even when cursor is exactly on the ref', () => {
+      const { tool } = setupWithRef();
+      tap(tool, { x: 60, y: 0 });
       expect(tool._start).toMatchObject({ x: 60, y: 0 });
     });
   });
@@ -142,9 +178,9 @@ describe('PerpendicularTool', () => {
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
       // Phase 1: pick ref
-      tool.onMouseDown({ x: 50, y: 0 });
+      tap(tool, { x: 50, y: 0 });
       // Phase 2: set start at (40, 0) — projection of (40, 50) on y=0
-      tool.onMouseDown({ x: 40, y: 50 });
+      tap(tool, { x: 40, y: 50 });
       expect(tool._start).toMatchObject({ x: 40, y: 0 });
       return { store, tool, seg };
     }
@@ -157,10 +193,10 @@ describe('PerpendicularTool', () => {
       expect(tool._previewEnd).toMatchObject({ x: 40, y: 30 });
     });
 
-    it('click creates a segment from start to projected end', () => {
+    it('tap creates a segment from start to projected end', () => {
       const { store, tool } = setupWithRefAndStart();
       const countBefore = store.getAll().length;
-      tool.onMouseDown({ x: 70, y: 30 }); // end is projected to (40, 30)
+      tap(tool, { x: 70, y: 30 }); // end is projected to (40, 30)
       expect(store.getAll().length).toBe(countBefore + 1);
       const newSeg = store.getAll().at(-1);
       expect(newSeg.type).toBe('segment');
@@ -168,9 +204,18 @@ describe('PerpendicularTool', () => {
       expect(newSeg.p2).toMatchObject({ x: 40, y: 30 });
     });
 
+    it('drag during phase 3 does not create a segment', () => {
+      const { store, tool } = setupWithRefAndStart();
+      const countBefore = store.getAll().length;
+      tool.onMouseDown({ x: 70, y: 30 });
+      tool.onMouseUp({ x: 70, y: 30 }, undefined, true); // drag
+      expect(store.getAll().length).toBe(countBefore); // nothing created
+      expect(tool._start).not.toBeNull(); // still in phase 3
+    });
+
     it('created segment is perpendicular to the reference (dot product ≈ 0)', () => {
       const { store, tool } = setupWithRefAndStart();
-      tool.onMouseDown({ x: 70, y: 30 });
+      tap(tool, { x: 70, y: 30 });
       const newSeg = store.getAll().at(-1);
       const ref = store.getAll()[0];
       const refDx = ref.p2.x - ref.p1.x, refDy = ref.p2.y - ref.p1.y;
@@ -181,7 +226,7 @@ describe('PerpendicularTool', () => {
 
     it('after creation, tool resets to phase 1 (no ref, start, cursor)', () => {
       const { tool } = setupWithRefAndStart();
-      tool.onMouseDown({ x: 70, y: 30 });
+      tap(tool, { x: 70, y: 30 });
       expect(tool._ref).toBeNull();
       expect(tool._start).toBeNull();
       expect(tool._previewStart).toBeNull();
@@ -191,7 +236,7 @@ describe('PerpendicularTool', () => {
     it('history.save is called when creating the segment', () => {
       const { tool } = setupWithRefAndStart();
       const saveSpy = tool.ctx.history.save;
-      tool.onMouseDown({ x: 70, y: 30 });
+      tap(tool, { x: 70, y: 30 });
       expect(saveSpy).toHaveBeenCalled();
     });
   });
@@ -206,12 +251,12 @@ describe('PerpendicularTool', () => {
       tool.ctx = makeCtx(store);
 
       // Phase 1: pick ref
-      tool.onMouseDown({ x: 5, y: 5 }); // click on the diagonal
+      tap(tool, { x: 5, y: 5 }); // tap on the diagonal
       expect(tool._ref).toBe(seg);
 
       // Phase 2: start = projection of (0, 10) onto line (0,0)-(10,10)
       // t = ((0-0)*10 + (10-0)*10) / (100+100) = 100/200 = 0.5 → (5,5)
-      tool.onMouseDown({ x: 0, y: 10 });
+      tap(tool, { x: 0, y: 10 });
       expect(tool._start.x).toBeCloseTo(5, 5);
       expect(tool._start.y).toBeCloseTo(5, 5);
 
@@ -219,7 +264,7 @@ describe('PerpendicularTool', () => {
       // Perp direction to (10,10) is (-10, 10) i.e. direction (-1,1) normalized
       // Line through (5,5) in direction (-1,1): project (10,0)
       // dot product of perpendicular segment with ref should ≈ 0
-      tool.onMouseDown({ x: 10, y: 0 });
+      tap(tool, { x: 10, y: 0 });
       const newSeg = store.getAll().at(-1);
       const refDx = 10, refDy = 10;
       const segDx = newSeg.p2.x - newSeg.p1.x;
@@ -236,8 +281,8 @@ describe('PerpendicularTool', () => {
       store.add(seg);
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
-      tool.onMouseDown({ x: 50, y: 0 });
-      tool.onMouseDown({ x: 30, y: 40 }); // set start
+      tap(tool, { x: 50, y: 0 });
+      tap(tool, { x: 30, y: 40 }); // set start
       tool.cancel();
       expect(tool._ref).toBeNull();
       expect(tool._start).toBeNull();
@@ -251,7 +296,7 @@ describe('PerpendicularTool', () => {
       store.add(seg);
       const tool = new PerpendicularTool();
       tool.ctx = makeCtx(store);
-      tool.onMouseDown({ x: 50, y: 0 });
+      tap(tool, { x: 50, y: 0 });
       tool.onKeyDown({ key: 'Escape' });
       expect(tool._ref).toBeNull();
     });
@@ -268,8 +313,8 @@ describe('PerpendicularTool', () => {
       ctx.canvas.findSnap = vi.fn(() => ({ x: 20, y: 5 }));
       tool.ctx = ctx;
 
-      tool.onMouseDown({ x: 50, y: 0 }); // pick ref
-      tool.onMouseDown({ x: 99, y: 99 }); // cursor far away; snap returns (20, 5)
+      tap(tool, { x: 50, y: 0 }); // pick ref
+      tap(tool, { x: 99, y: 99 }); // cursor far away; snap returns (20, 5)
       // Start = project (20, 5) onto y=0 → (20, 0)
       expect(tool._start).toMatchObject({ x: 20, y: 0 });
     });
@@ -282,12 +327,12 @@ describe('PerpendicularTool', () => {
       const ctx = makeCtx(store);
       tool.ctx = ctx;
 
-      tool.onMouseDown({ x: 50, y: 0 }); // pick ref
-      tool.onMouseDown({ x: 40, y: 50 }); // start = (40, 0)
+      tap(tool, { x: 50, y: 0 }); // pick ref
+      tap(tool, { x: 40, y: 50 }); // start = (40, 0)
 
       // In phase 3, snap returns (80, 25)
       ctx.canvas.findSnap = vi.fn(() => ({ x: 80, y: 25 }));
-      tool.onMouseDown({ x: 99, y: 99 }); // cursor far; snap to (80,25)
+      tap(tool, { x: 99, y: 99 }); // cursor far; snap to (80,25)
       // End = project (80, 25) onto vertical x=40 → (40, 25)
       const newSeg = store.getAll().at(-1);
       expect(newSeg.p2).toMatchObject({ x: 40, y: 25 });

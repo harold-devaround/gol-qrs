@@ -22,7 +22,8 @@ export class MedianTool extends ToolBase {
   activate() { this.canvas.el.style.cursor = 'crosshair'; }
   cancel() { this._pts = []; this._cursor = null; this.dirty(); }
 
-  onMouseDown(wp) {
+  onMouseUp(wp, e, hasMoved) {
+    if (hasMoved) return;
     // Try to hit an existing triangle
     if (this._pts.length === 0) {
       const threshold = 8 / this.canvas.zoom;

@@ -21,7 +21,7 @@ export class ToolBase {
   // Override these in subclasses
   onMouseDown(world, e) {}
   onMouseMove(world, e) {}
-  onMouseUp(world, e) {}
+  onMouseUp(world, e, hasMoved) {}
   onKeyDown(e) { if (e.key === 'Escape') this.cancel(); }
 
   /** Render tool-specific preview (rubber-bands, etc.) in screen coords. */

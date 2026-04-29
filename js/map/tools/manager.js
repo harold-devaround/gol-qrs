@@ -61,7 +61,7 @@ export class ToolManager extends EventEmitter {
     const c = this._ctx.canvas;
     c.on('mousedown', d => this.active.onMouseDown(d.world, d.event));
     c.on('mousemove', d => this.active.onMouseMove(d.world, d.event));
-    c.on('mouseup',   d => this.active.onMouseUp(d.world, d.event));
+    c.on('mouseup',   d => this.active.onMouseUp(d.world, d.event, d.hasMoved));
     c.on('keydown',   e => this.active.onKeyDown(e));
     // Cancel in-progress tool action (e.g. when a 2nd touch starts a pinch gesture)
     c.on('cancel',    () => this.active.cancel());
