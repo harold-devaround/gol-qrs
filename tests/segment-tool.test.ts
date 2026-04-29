@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
-import { ShapeStore } from '../js/map/store.ts';
-import { SegmentTool } from '../js/map/tools/segment.ts';
+import { ShapeStore } from '../js/map/store.js';
+import { SegmentTool } from '../js/map/tools/segment.js';
 
 /* ── helpers ──────────────────────────────────────────── */
 

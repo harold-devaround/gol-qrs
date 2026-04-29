@@ -62,13 +62,13 @@ tests/
 
 | Élément      | Version | Usage                                       |
 |-------------|---------|---------------------------------------------|
-| TypeScript  | 6.0.x   | Typage statique (`npm run typecheck`)        |
+| TypeScript  | 6.0.x   | Typage statique (`npm run typecheck`) + émission browser (`npm run build`) |
 | Fabric.js   | 7.2.0   | Rendu canvas, chargé via `<script>` UMD     |
 | Vitest      | 4.1.4   | Framework de test (`npm test`)               |
 | @vitest/coverage-v8 | 4.1.x | Couverture de code (`npm run test:coverage`) |
 | typescript-eslint | 8.x | Linting TypeScript (`npm run lint`)        |
 | ES Modules  | —       | `"type": "module"` dans package.json        |
-| Pas de bundler | —    | Fichiers servis directement                 |
+| Pas de bundler | —    | `tsc` émet `dist/**/*.js` directement consommé par `index.html` (`dist/app.js`) ; pas de Webpack/Vite/Rollup |
 
 ## Fonctionnalités implémentées
 
@@ -114,7 +114,8 @@ npm test              # npx vitest run — lance les 433 tests
 npm run test:watch    # vitest en mode watch
 npm run test:coverage # vitest avec rapport de couverture (v8)
 npm run typecheck     # tsc --noEmit — vérification TypeScript
-npm run check         # typecheck + test (CI complet)
+npm run build         # tsc -p tsconfig.build.json — émet js/**/*.js (consommé par index.html)
+npm run check         # typecheck + test + build (CI complet)
 ```
 
 ## Historique des modifications
@@ -157,3 +158,4 @@ npm run check         # typecheck + test (CI complet)
 | —         | Migration TypeScript : renommage .js → .ts (sources + tests), tsconfig.json, vitest.config.ts, eslint.config.js, js/types.ts (interfaces Shape/Point/Rect). `// @ts-nocheck` sur fichiers existants (approche progressive). Scripts npm : typecheck, lint, check, test:coverage. 414 tests, tsc --noEmit ✓ |
 | 2026-04-29| Typage strict : suppression `@ts-nocheck` de events.ts, geometry.ts, store.ts, history.ts, measurement.ts, save-manager.ts. Types propres avec imports depuis types.ts. 414 tests, tsc --noEmit ✓. copilot-instructions.md mis à jour avec workflow qualité obligatoire (test + typecheck + coverage). |
 | 2026-04-29| Audit complet : (1) `ShapeStore.restore()` re-synchronise désormais le pool d'IDs (`syncNextId`) et `clear()` libère explicitement les IDs — corrige un bug de fuite d'IDs après undo/clear ; (2) `save-manager._readAll()` valide la forme des données — résiste aux entrées localStorage corrompues (chaînes, tableaux, slots invalides) ; (3) Helper `esc()` introduit dans `map-section.ts` pour échapper les chaînes contrôlées par l'utilisateur (labels de formes, noms de slots) interpolées en HTML — corrige un risque d'injection HTML/CSS ; (4) Suppression `@ts-nocheck` de tab-router.ts, qr-section.ts, image-viewer.ts (typage propre) ; (5) eslint.config.js : règles `ban-ts-comment` et `no-unused-vars` ajustées pour s'aligner sur les conventions du projet. 433 tests, lint ✓, typecheck ✓. |
+| 2026-04-29| Suite audit PR #24 (follow-up "Out of scope") : pipeline de build TS→JS pour rendre l'app exécutable dans le navigateur. Tous les imports relatifs `.ts` réécrits en `.js` (résolution `.js`→`.ts` côté tsc/Vitest, fichier réel côté navigateur). Nouveau `tsconfig.build.json` (extends `tsconfig.json`, `noEmit:false`, `outDir: dist`). Script `npm run build` ajouté ; `npm run check` enchaîne désormais typecheck + test + build. `index.html` charge maintenant `dist/app.js` (séparation source `js/` vs émission `dist/`). `.gitignore` exclut `dist/`. 433 tests inchangés, typecheck ✓, lint ✓, build ✓. |

@@ -2,3 +2,6 @@ node_modules/
 package-lock.json
 temp_*
 coverage/
+
+# Build output (emitted by `npm run build` from tsconfig.build.json)
+dist/

@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createMedian, hitTestShape } from '../shapes.ts';
-import { midpoint } from '../../utils/geometry.ts';
+import { ToolBase } from './base.js';
+import { createMedian, hitTestShape } from '../shapes.js';
+import { midpoint } from '../../utils/geometry.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <path d="M12 3L3 21h18z"/><line x1="12" y1="3" x2="10.5" y2="21" stroke-dasharray="3 2"/>

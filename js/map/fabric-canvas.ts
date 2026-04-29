@@ -1,6 +1,6 @@
 // @ts-nocheck
-import { EventEmitter } from '../utils/events.ts';
-import { distance, getSnapPoints } from '../utils/geometry.ts';
+import { EventEmitter } from '../utils/events.js';
+import { distance, getSnapPoints } from '../utils/geometry.js';
 
 /* global fabric */
 

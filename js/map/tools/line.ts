@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createLine } from '../shapes.ts';
-import { clipLineToRect } from '../../utils/geometry.ts';
+import { ToolBase } from './base.js';
+import { createLine } from '../shapes.js';
+import { clipLineToRect } from '../../utils/geometry.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <line x1="2" y1="22" x2="22" y2="2"/><polyline points="2,18 2,22 6,22"/><polyline points="18,2 22,2 22,6"/>

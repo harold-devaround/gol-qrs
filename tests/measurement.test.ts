@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
-import { Measurement } from '../js/map/measurement.ts';
+import { Measurement } from '../js/map/measurement.js';
 
 // Known 15°-resolution tick data used for toGPS interpolation tests.
 const LON_TICKS_15 = [

@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createSegment, hitTestShape } from '../shapes.ts';
-import { projectOnLine } from '../../utils/geometry.ts';
+import { ToolBase } from './base.js';
+import { createSegment, hitTestShape } from '../shapes.js';
+import { projectOnLine } from '../../utils/geometry.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <line x1="2" y1="6" x2="22" y2="6"/><line x1="2" y1="18" x2="22" y2="18"/>

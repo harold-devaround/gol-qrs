@@ -1,7 +1,7 @@
 // @ts-nocheck
-import { ToolBase } from './base.ts';
-import { createAngle } from '../shapes.ts';
-import { angleDeg } from '../../utils/geometry.ts';
+import { ToolBase } from './base.js';
+import { createAngle } from '../shapes.js';
+import { angleDeg } from '../../utils/geometry.js';
 
 const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
   <path d="M4 20h16"/><path d="M4 20L14 4"/><path d="M8 20a8 8 0 0 1 3.5-6.6"/>

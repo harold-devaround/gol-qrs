@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
-import { initTabRouter } from '../js/tab-router.ts';
+import { initTabRouter } from '../js/tab-router.js';
 
 /* ── DOM helpers ──────────────────────────────────────────── */
 

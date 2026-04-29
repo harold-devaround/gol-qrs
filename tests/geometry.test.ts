@@ -7,7 +7,7 @@ import {
   triangleArea, centroid, circumcenter,
   pointInTriangle, pointInCircle, getSnapPoints,
   parallelThrough, snapToAngle,
-} from '../js/utils/geometry.ts';
+} from '../js/utils/geometry.js';
 
 describe('distance', () => {
   it('returns 0 for identical points', () => {

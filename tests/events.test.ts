@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { EventEmitter } from '../js/utils/events.ts';
+import { EventEmitter } from '../js/utils/events.js';
 
 describe('EventEmitter', () => {
   it('calls listener on emit', () => {

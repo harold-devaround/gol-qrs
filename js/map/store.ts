@@ -1,6 +1,6 @@
-import { EventEmitter } from '../utils/events.ts';
-import { releaseId, syncNextId } from './shapes.ts';
-import type { Shape } from '../types.ts';
+import { EventEmitter } from '../utils/events.js';
+import { releaseId, syncNextId } from './shapes.js';
+import type { Shape } from '../types.js';
 
 /**
  * Central store for all shapes. CRUD + selection + events.

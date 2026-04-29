@@ -1,12 +1,12 @@
 // @ts-nocheck
-import { MapCanvas } from './fabric-canvas.ts';
-import { ShapeStore } from './store.ts';
-import { History } from './history.ts';
-import { Measurement } from './measurement.ts';
-import { ToolManager } from './tools/manager.ts';
-import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics } from './shapes.ts';
-import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.ts';
-import { detectGraduations, buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.ts';
+import { MapCanvas } from './fabric-canvas.js';
+import { ShapeStore } from './store.js';
+import { History } from './history.js';
+import { Measurement } from './measurement.js';
+import { ToolManager } from './tools/manager.js';
+import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics } from './shapes.js';
+import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.js';
+import { detectGraduations, buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
 
 /** WorldMap MHF — auto-loaded on init. Physical: 160cm wide × 120cm tall. */
 const WORLDMAP_SRC = '2019_WorldMap_MHF_1.2x1.6m.jpg';

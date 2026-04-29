@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { describe, it, expect, vi } from 'vitest';
-import { ShapeStore } from '../js/map/store.ts';
-import { SelectTool } from '../js/map/tools/select.ts';
+import { ShapeStore } from '../js/map/store.js';
+import { SelectTool } from '../js/map/tools/select.js';
 
 /* ── helpers ──────────────────────────────────────────── */
 

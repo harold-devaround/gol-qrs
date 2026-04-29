@@ -1,5 +1,5 @@
-import { EventEmitter } from '../utils/events.ts';
-import { DEFAULT_CALIBRATION, interpolateLonFromX, interpolateLatFromY } from './gps-calibration.ts';
+import { EventEmitter } from '../utils/events.js';
+import { DEFAULT_CALIBRATION, interpolateLonFromX, interpolateLatFromY } from './gps-calibration.js';
 
 interface GPSCalibration {
   mapLeft: number;
