@@ -24,8 +24,15 @@ export function initTabRouter(
       const target = (tab as HTMLElement).dataset.section;
       if (!target) return;
 
-      // Toggle active class on tabs
-      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      // Toggle active class on tabs (and sync aria-selected when available)
+      tabs.forEach(t => {
+        const isActive = t === tab;
+        t.classList.toggle('active', isActive);
+        // Defensive: tests use lightweight mocks without setAttribute
+        if (typeof (t as Element).setAttribute === 'function') {
+          (t as Element).setAttribute('aria-selected', String(isActive));
+        }
+      });
 
       // Toggle active class on sections
       sections.forEach(s => s.classList.toggle('active', s.id === `section-${target}`));
