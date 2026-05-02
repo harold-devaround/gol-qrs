@@ -118,7 +118,7 @@ describe('SegmentTool', () => {
       expect(tool._cursor).toBeNull();
     });
 
-    it('renderPreview draws nothing when _cursor is null after first click', () => {
+    it('renderPreview draws first-point ring marker when _cursor is null after first click', () => {
       const store = new ShapeStore();
       const tool = new SegmentTool();
       tool.ctx = makeCtx(store);
@@ -129,14 +129,18 @@ describe('SegmentTool', () => {
       tap(tool, { x: 100, y: 200 });
 
       // Mock canvas context and viewport
-      const ctx = { beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), setLineDash: vi.fn(), arc: vi.fn(), fill: vi.fn() };
+      const ctx = { beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), setLineDash: vi.fn(), arc: vi.fn(), fill: vi.fn(), strokeStyle: '', lineWidth: 0, fillStyle: '' };
       const vp = { toScreen: vi.fn((x, y) => ({ x, y })) };
 
       tool.renderPreview(ctx, vp);
 
-      // No drawing should happen (_cursor is null → early return)
-      expect(ctx.beginPath).not.toHaveBeenCalled();
-      expect(ctx.stroke).not.toHaveBeenCalled();
+      // Ring marker (stroke) + inner dot (fill) drawn at first point; no line yet
+      expect(ctx.beginPath).toHaveBeenCalled();
+      expect(ctx.arc).toHaveBeenCalledWith(100, 200, 7, 0, Math.PI * 2);
+      expect(ctx.stroke).toHaveBeenCalled();
+      expect(ctx.fill).toHaveBeenCalled();
+      expect(ctx.moveTo).not.toHaveBeenCalled();
+      expect(ctx.lineTo).not.toHaveBeenCalled();
     });
 
     it('renderPreview draws after mouse moves post first click', () => {
