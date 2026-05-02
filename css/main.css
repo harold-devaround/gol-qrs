@@ -886,7 +886,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 50%;
-  z-index: 50;
+  z-index: 65;
   box-shadow: var(--shadow-2);
   color: var(--text);
   transition: background var(--t), color var(--t), transform var(--t);

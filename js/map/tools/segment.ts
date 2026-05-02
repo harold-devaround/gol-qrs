@@ -40,8 +40,14 @@ export class SegmentTool extends ToolBase {
   }
 
   renderPreview(ctx, vp) {
-    if (!this._p1 || !this._cursor) return;
+    if (!this._p1) return;
     const a = vp.toScreen(this._p1.x, this._p1.y);
+    // First-point marker: ring + inner dot (always shown once p1 is placed)
+    ctx.beginPath(); ctx.arc(a.x, a.y, 7, 0, Math.PI * 2);
+    ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(a.x, a.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#f1c40f'; ctx.fill();
+    if (!this._cursor) return;
     const b = vp.toScreen(this._cursor.x, this._cursor.y);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
@@ -50,8 +56,7 @@ export class SegmentTool extends ToolBase {
     ctx.setLineDash([5, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
-    // dots
-    ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, Math.PI * 2); ctx.fillStyle = '#f1c40f'; ctx.fill();
-    ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill();
+    // cursor dot (distinct from the ring of the first point)
+    ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fillStyle = '#f1c40f'; ctx.fill();
   }
 }
