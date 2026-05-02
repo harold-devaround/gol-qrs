@@ -136,7 +136,10 @@ describe('two-finger pinch starts', () => {
     expect(mc._pinching).toBe(true);
   });
 
-  it('emits cancel when second finger arrives', () => {
+  it('does NOT emit cancel when 2nd finger arrives during a buffered tap (no active drag)', () => {
+    // The 1st finger has only just touched down — its tap is buffered, the
+    // active tool has not been notified. A pinch starting now must not
+    // interfere with any tool state (e.g. a SegmentTool _p1 placed earlier).
     const cancelSpy = vi.fn();
     mc.on('cancel', cancelSpy);
     fabricMock.upperCanvasEl.dispatchEvent(
@@ -145,15 +148,42 @@ describe('two-finger pinch starts', () => {
     fabricMock.upperCanvasEl.dispatchEvent(
       makePointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 200 }),
     );
+    expect(cancelSpy).not.toHaveBeenCalled();
+  });
+
+  it('emits cancel when 2nd finger arrives during an active drag', () => {
+    // Once finger 1 has dragged past the tap threshold a mousedown was emitted
+    // to the active tool — the pinch must abort that in-progress drag.
+    const cancelSpy = vi.fn();
+    mc.on('cancel', cancelSpy);
+    // Simulate finger 1: pointerdown notifies our capture handler AND would
+    // (in real Fabric) trigger mouse:down to buffer the tap. Call the buffered
+    // mouse:down handler manually to mirror the real wiring.
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    const mdHandler = getFabricHandler('mouse:down');
+    const mmHandler = getFabricHandler('mouse:move');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 200 }) });
+    // Drag past the tap threshold → _touchMoved becomes true
+    mmHandler({ e: makeFabricPointerEvent({ clientX: 150, clientY: 200 }) });
+    expect(mc._touchMoved).toBe(true);
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
     expect(cancelSpy).toHaveBeenCalledOnce();
   });
 
-  it('cancel is emitted at most once per pinch session', () => {
+  it('cancel is emitted at most once per pinch session even with active drag', () => {
     const cancelSpy = vi.fn();
     mc.on('cancel', cancelSpy);
     fabricMock.upperCanvasEl.dispatchEvent(
       makePointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 200 }),
     );
+    const mdHandler = getFabricHandler('mouse:down');
+    const mmHandler = getFabricHandler('mouse:move');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 200 }) });
+    mmHandler({ e: makeFabricPointerEvent({ clientX: 150, clientY: 200 }) });
     fabricMock.upperCanvasEl.dispatchEvent(
       makePointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 200 }),
     );
@@ -373,8 +403,6 @@ describe('pinch end', () => {
       makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
     );
     // New pinch
-    const cancelSpy = vi.fn();
-    mc.on('cancel', cancelSpy);
     fabricMock.upperCanvasEl.dispatchEvent(
       makePointerEvent('pointerdown', { pointerId: 3, clientX: 100, clientY: 200 }),
     );
@@ -382,10 +410,12 @@ describe('pinch end', () => {
       makePointerEvent('pointerdown', { pointerId: 4, clientX: 200, clientY: 200 }),
     );
     expect(mc._pinching).toBe(true);
-    expect(cancelSpy).toHaveBeenCalledOnce();
   });
 
-  it('Fabric is blocked on pointerup after pinch', () => {
+  it('Fabric is blocked on pointerup for BOTH fingers after pinch (regression: phantom tap creates shape)', () => {
+    // Regression: if only the first finger lift was blocked, the second
+    // finger's pointerup would reach Fabric, fire mouse:up with hasMoved=false
+    // (reset at pinch start) and the active tool would treat it as a tap.
     const fabricSpy = vi.fn();
     fabricMock.upperCanvasEl.addEventListener('pointerup', fabricSpy);
 
@@ -395,7 +425,47 @@ describe('pinch end', () => {
     fabricMock.upperCanvasEl.dispatchEvent(
       makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
     );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
     expect(fabricSpy).not.toHaveBeenCalled();
+  });
+
+  it('Fabric is blocked on pointercancel for both fingers after pinch', () => {
+    const fabricSpy = vi.fn();
+    fabricMock.upperCanvasEl.addEventListener('pointercancel', fabricSpy);
+
+    startPinch();
+    fabricSpy.mockClear();
+
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointercancel', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointercancel', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
+    expect(fabricSpy).not.toHaveBeenCalled();
+  });
+
+  it('a fresh tap after pinch is delivered to the active tool', () => {
+    // Sanity: once both pinch fingers are gone, a brand-new single-finger tap
+    // must reach the tool again (the suppression window must close cleanly).
+    startPinch();
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
+
+    const upSpy = vi.fn();
+    mc.on('mouseup', upSpy);
+    // New tap
+    const mdHandler = getFabricHandler('mouse:down');
+    const muHandler = getFabricHandler('mouse:up');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    muHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    expect(upSpy).toHaveBeenCalledOnce();
   });
 });
 
@@ -887,5 +957,90 @@ describe('_canvasXY handles missing coordinates from touchend', () => {
     const { sx, sy } = mc._canvasXY(ptr);
     expect(sx).toBe(0);
     expect(sy).toBe(0);
+  });
+});
+/* ── Regression: pinch must not interact with active tool state ─── */
+
+describe('view manipulation does not interact with tool state', () => {
+  it('SegmentTool _p1 placed by tap is preserved through a subsequent pinch (regression: first selected point changes)', async () => {
+    const { SegmentTool } = await import('../js/map/tools/segment.js');
+    const { ShapeStore } = await import('../js/map/store.js');
+
+    // Identity viewport so screen coordinates map straight to world.
+    fabricMock.upperCanvasEl.getBoundingClientRect = vi.fn(() => ({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600,
+    }));
+
+    const store = new ShapeStore();
+    const tool = new SegmentTool();
+    tool.ctx = {
+      store,
+      canvas: { el: { style: {} }, zoom: 1, requestRender: () => {}, findSnap: () => null, currentSnap: null },
+      history: { save: () => {} },
+      measurement: {},
+      angleSnapStep: 45,
+    };
+
+    // Wire MapCanvas events to the tool the same way ToolManager does.
+    mc.on('mousedown', d => tool.onMouseDown(d.world, d.event));
+    mc.on('mouseup',   d => tool.onMouseUp(d.world, d.event, d.hasMoved));
+    mc.on('cancel',    () => tool.cancel());
+
+    const mdHandler = getFabricHandler('mouse:down');
+    const muHandler = getFabricHandler('mouse:up');
+
+    // 1. User taps to place the first segment point.
+    //    pointerdown → capture handler tracks the touch; Fabric's mouse:down
+    //    buffers the tap. pointerup → Fabric's mouse:up emits both mousedown
+    //    and mouseup at the buffered position.
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 200 }) });
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup',   { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    muHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 200 }) });
+    expect(tool._p1).toEqual({ x: 100, y: 200 });
+
+    // 2. User starts a pinch to pan/zoom: finger 1 down, finger 2 down.
+    //    Finger 1's pointerdown reaches Fabric (capture handler does not stop
+    //    it for the first finger), so its mouse:down also fires.
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 2, clientX: 300, clientY: 400 }),
+    );
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    // Finger 2's pointerdown is intercepted by the capture handler and never
+    // reaches Fabric, so we must NOT call mdHandler for it.
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 3, clientX: 500, clientY: 400 }),
+    );
+    expect(mc._pinching).toBe(true);
+
+    // The cancel emitted on pinch start (if any) must not have wiped _p1 —
+    // only a buffered tap was pending, no active drag.
+    expect(tool._p1).toEqual({ x: 100, y: 200 });
+
+    // 3. Both pinch fingers lift. The capture handler must stop propagation
+    //    for BOTH so Fabric never fires mouse:up for either — preventing the
+    //    phantom tap that would change the first selected point.
+    let mu1Reached = false, mu2Reached = false;
+    fabricMock.upperCanvasEl.addEventListener('pointerup', e => {
+      if (e.pointerId === 2) mu1Reached = true;
+      if (e.pointerId === 3) mu2Reached = true;
+    });
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 320, clientY: 420 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 3, clientX: 520, clientY: 420 }),
+    );
+    expect(mu1Reached).toBe(false);
+    expect(mu2Reached).toBe(false);
+
+    // 4. _p1 still points at the originally tapped position; no shape was
+    //    accidentally created.
+    expect(tool._p1).toEqual({ x: 100, y: 200 });
+    expect(store.getAll()).toHaveLength(0);
   });
 });
