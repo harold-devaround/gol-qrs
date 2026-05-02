@@ -40,9 +40,13 @@ export class MapCanvas extends EventEmitter {
     this.mapImage = null;
     this._bgImage = null;
 
-    // Snap
+    // Snap — screen-pixel radius within which a click/tap snaps to an existing point.
+    // Mouse uses a generous radius for easy snapping; touch uses an even larger one
+    // to compensate for finger imprecision so taps near a point reliably snap to it.
     this.snapEnabled = true;
-    this.snapThreshold = 10;
+    this.snapThreshold = 18;
+    this.touchSnapThreshold = 32;
+    this._lastInputType = 'mouse';
     this.currentSnap = null;
 
     // External callbacks (used by map-section & tools)
@@ -63,6 +67,15 @@ export class MapCanvas extends EventEmitter {
     this._pendingTouchDown = null;  // { screen, world, event }
     this._touchStartScreen = null;  // { x, y } — screen position at touchstart
     this._touchMoved = false;       // true once touch moved beyond tap threshold
+
+    // Set when a pinch starts. Fabric (with default enablePointerEvents=false)
+    // listens for `touchend` on `document` and synthesizes a `mouse:up` event
+    // once ALL fingers have lifted (touches.length === 0). That synthesized
+    // mouse:up arrives AFTER our pointerup capture handlers have already
+    // cleared `_pinching`/`suppressTouchUps`, so the touch branch of mouse:up
+    // would otherwise emit a phantom tap to the active tool. This flag tells
+    // mouse:up to consume and drop that one trailing event.
+    this._suppressNextTouchUp = false;
 
     // Click detection for non-touch: track movement between mousedown and mouseup
     this._mouseDownScreen = null;   // { x, y } — screen position at mousedown
@@ -192,7 +205,10 @@ export class MapCanvas extends EventEmitter {
 
   findSnap(worldPt, shapes) {
     if (!this.snapEnabled) return null;
-    const threshold = this.snapThreshold / this.zoom;
+    const screenThreshold = this._lastInputType === 'touch'
+      ? this.touchSnapThreshold
+      : this.snapThreshold;
+    const threshold = screenThreshold / this.zoom;
     let best = null, bestDist = threshold;
     for (const s of shapes) {
       if (!s.visible) continue;
@@ -276,6 +292,10 @@ export class MapCanvas extends EventEmitter {
       const e = opt.e;
       const { sx, sy } = this._canvasXY(e);
 
+      // Track the input modality so findSnap can pick the right threshold
+      // (touch fingers need a more generous snap radius than a mouse cursor).
+      this._lastInputType = e.pointerType === 'touch' ? 'touch' : 'mouse';
+
       // Middle button or space+left or right → pan
       if (e.button === 1 || e.button === 2 || (e.button === 0 && this._spaceDown)) {
         this._panning = true;
@@ -303,6 +323,9 @@ export class MapCanvas extends EventEmitter {
     this.fc.on('mouse:move', (opt) => {
       if (this._pinching) return;
       const e = opt.e;
+      // Keep the input modality up to date so hover-snap (without a prior
+      // mousedown) uses the appropriate radius.
+      this._lastInputType = e.pointerType === 'touch' ? 'touch' : 'mouse';
       const { sx, sy } = this._canvasXY(e);
 
       if (this._panning && this._panStart) {
@@ -348,6 +371,16 @@ export class MapCanvas extends EventEmitter {
       const wp = this.toWorld(sx, sy);
 
       if (e.pointerType === 'touch') {
+        // After a pinch, Fabric's `touchend` (on document) synthesizes a
+        // trailing mouse:up. Drop it so the active tool doesn't see a phantom
+        // tap at the lift position.
+        if (this._suppressNextTouchUp) {
+          this._suppressNextTouchUp = false;
+          this._pendingTouchDown = null;
+          this._touchStartScreen = null;
+          this._touchMoved = false;
+          return;
+        }
         // Capture hasMoved before resetting state
         const hasMoved = this._touchMoved;
         const pending = this._pendingTouchDown;
@@ -437,6 +470,11 @@ export class MapCanvas extends EventEmitter {
           // From now until every finger of this gesture lifts, suppress Fabric's
           // pointerup so no phantom tap is delivered to the active tool.
           suppressTouchUps = true;
+          // After all fingers lift, Fabric's document-level `touchend` listener
+          // will fire one synthesized mouse:up event we cannot block from here
+          // (different event type, different element). Mark it so the mouse:up
+          // handler drops it.
+          this._suppressNextTouchUp = true;
           // Capture whether finger 1 had progressed past the tap threshold into
           // a real drag (mousedown was emitted to the tool). Only in that case
           // does the tool need to be told to cancel its in-progress action.

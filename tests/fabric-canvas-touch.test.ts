@@ -460,11 +460,77 @@ describe('pinch end', () => {
 
     const upSpy = vi.fn();
     mc.on('mouseup', upSpy);
-    // New tap
     const mdHandler = getFabricHandler('mouse:down');
     const muHandler = getFabricHandler('mouse:up');
+    // Fabric's synthesized post-pinch mouse:up (from touchend on document)
+    // — must be consumed silently by the suppression flag.
+    muHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 200, pointerType: 'touch' }) });
+    expect(upSpy).not.toHaveBeenCalled();
+
+    // New tap
     mdHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
     muHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    expect(upSpy).toHaveBeenCalledOnce();
+  });
+
+  it("Fabric's synthesized mouse:up after pinch (touchend on document) does NOT reach tools (regression: phantom mouse:up triggers tool)", () => {
+    // Real-world bug: with Fabric's default `enablePointerEvents=false`, Fabric
+    // listens for `touchend` on `document`, not on the upper canvas. Once all
+    // fingers lift, Fabric synthesizes one mouse:up event (touches.length===0).
+    // Our pointer-capture handler cannot intercept that — it's a different
+    // event type on a different element. Without the _suppressNextTouchUp
+    // flag, the active tool would receive a phantom mouseup at the lift point.
+    const upSpy = vi.fn();
+    mc.on('mouseup', upSpy);
+
+    startPinch();
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
+
+    // Now Fabric's _onTouchEnd fires (touches.length === 0) and emits mouse:up.
+    const muHandler = getFabricHandler('mouse:up');
+    muHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 200, pointerType: 'touch' }) });
+
+    expect(upSpy).not.toHaveBeenCalled();
+  });
+
+  it('only the FIRST trailing mouse:up after a pinch is suppressed; subsequent taps work', () => {
+    // Make sure the suppression is one-shot: a tap after the pinch must
+    // still produce a mousedown+mouseup pair.
+    const downSpy = vi.fn();
+    const upSpy = vi.fn();
+    mc.on('mousedown', downSpy);
+    mc.on('mouseup', upSpy);
+
+    startPinch();
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
+    // Fabric's synthesized post-pinch mouse:up — should be eaten.
+    const muHandler = getFabricHandler('mouse:up');
+    muHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 200, pointerType: 'touch' }) });
+    expect(upSpy).not.toHaveBeenCalled();
+    expect(mc._suppressNextTouchUp).toBe(false);
+
+    // Now a real tap.
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 5, clientX: 300, clientY: 400 }),
+    );
+    const mdHandler = getFabricHandler('mouse:down');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 5, clientX: 300, clientY: 400 }),
+    );
+    muHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+
+    expect(downSpy).toHaveBeenCalledOnce();
     expect(upSpy).toHaveBeenCalledOnce();
   });
 });
@@ -1042,5 +1108,78 @@ describe('view manipulation does not interact with tool state', () => {
     //    accidentally created.
     expect(tool._p1).toEqual({ x: 100, y: 200 });
     expect(store.getAll()).toHaveLength(0);
+  });
+});
+
+/* ── Snap threshold: easier snap-to-point, esp. on touch ─────────── */
+
+describe('findSnap threshold (per input modality)', () => {
+  const point = { type: 'point', x: 100, y: 100, visible: true };
+
+  it('default mouse snapThreshold is generous enough for casual clicks', () => {
+    // A click 15 screen-px away from an existing point should still snap.
+    const snap = mc.findSnap({ x: 115, y: 100 }, [point]);
+    expect(snap).toEqual({ x: 100, y: 100 });
+  });
+
+  it('mouse snap does not catch points far beyond the mouse threshold', () => {
+    // Beyond the mouse threshold (18px) but within the touch threshold (32px)
+    // → mouse mode must NOT snap.
+    mc._lastInputType = 'mouse';
+    const snap = mc.findSnap({ x: 125, y: 100 }, [point]);
+    expect(snap).toBeNull();
+  });
+
+  it('touch snap uses the larger touchSnapThreshold', () => {
+    // 25 screen-px away — outside mouse threshold (18) but inside touch (32).
+    mc._lastInputType = 'touch';
+    const snap = mc.findSnap({ x: 125, y: 100 }, [point]);
+    expect(snap).toEqual({ x: 100, y: 100 });
+  });
+
+  it('touch snap still does not catch points beyond the touch threshold', () => {
+    mc._lastInputType = 'touch';
+    const snap = mc.findSnap({ x: 140, y: 100 }, [point]);
+    expect(snap).toBeNull();
+  });
+
+  it('snapEnabled=false disables snapping regardless of threshold', () => {
+    mc.snapEnabled = false;
+    mc._lastInputType = 'touch';
+    const snap = mc.findSnap({ x: 105, y: 100 }, [point]);
+    expect(snap).toBeNull();
+  });
+
+  it('thresholds scale inversely with zoom (screen-px stay constant)', () => {
+    // At zoom=2, the screen-px threshold corresponds to half as many world units.
+    fabricMock.fc.getZoom = vi.fn(() => 2);
+    mc._lastInputType = 'mouse';
+    // 8 world-units = 16 screen-px → within the 18px mouse threshold → snap
+    expect(mc.findSnap({ x: 108, y: 100 }, [point])).toEqual({ x: 100, y: 100 });
+    // 12 world-units = 24 screen-px → beyond 18px mouse threshold → no snap
+    expect(mc.findSnap({ x: 112, y: 100 }, [point])).toBeNull();
+  });
+});
+
+describe('mouse:down updates _lastInputType for snap', () => {
+  it('mouse pointerdown sets _lastInputType to mouse', () => {
+    mc._lastInputType = 'touch'; // start in touch mode
+    const mdHandler = getFabricHandler('mouse:down');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100, pointerType: 'mouse' }) });
+    expect(mc._lastInputType).toBe('mouse');
+  });
+
+  it('touch pointerdown (via Fabric mouse:down buffer) sets _lastInputType to touch', () => {
+    mc._lastInputType = 'mouse';
+    const mdHandler = getFabricHandler('mouse:down');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100, pointerType: 'touch' }) });
+    expect(mc._lastInputType).toBe('touch');
+  });
+
+  it('mouse:move also updates _lastInputType (so hover-snap uses the right radius)', () => {
+    mc._lastInputType = 'mouse';
+    const mmHandler = getFabricHandler('mouse:move');
+    mmHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100, pointerType: 'touch' }) });
+    expect(mc._lastInputType).toBe('touch');
   });
 });
