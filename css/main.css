@@ -52,7 +52,7 @@
   /* Hauteurs des barres mobiles */
   --h-nav:        56px;
   --h-actionbar:  48px;
-  --h-toolstrip:  60px;
+  --h-toolstrip:  120px; /* 2 rangées de 48px + gap(4px) + 2×padding(6px) = 2×48+4+2×6 = 112px, arrondi à 120px */
   --h-statusbar:  26px;
 
   /* Safe area (notch / home indicator) */
@@ -86,6 +86,11 @@ html, body {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeLegibility;
+}
+
+/* iOS Safari : utiliser la hauteur visible (sans la barre d'adresse) */
+@supports (height: 100svh) {
+  html, body { height: 100svh; }
 }
 
 button, [role="button"] {
@@ -394,18 +399,21 @@ body {
 .map-actionbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  align-content: center;
   gap: 2px;
-  padding: 0 6px;
-  height: var(--h-actionbar);
+  row-gap: 2px;
+  padding: 4px 6px;
+  height: auto;
+  min-height: var(--h-actionbar);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overflow: hidden;
 }
-.map-actionbar::-webkit-scrollbar { display: none; }
+
+/* Spacer masqué sur mobile : évite une ligne vide lors du flex-wrap */
+.abar-spacer { display: none; }
 
 .map-main {
   flex: 1;
@@ -442,24 +450,24 @@ body {
 /* ── 5. Toolbar — bottom strip mobile, side bar desktop ──── */
 
 .map-toolbar {
-  /* Mobile : strip horizontal toujours visible, ancré sous le canvas */
+  /* Mobile : grille d'icônes enroulée, toujours visible sous le canvas */
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  height: var(--h-toolstrip);
-  padding: 0 6px;
+  align-content: center;
+  justify-content: center;
+  height: auto;
+  min-height: 60px; /* minimum 1 rangée ; var(--h-toolstrip)=120px est la hauteur cible à 2 rangées */
+  padding: 6px;
   gap: 4px;
   background: var(--surface);
   border-top: 1px solid var(--border);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
   flex-shrink: 0;
+  overflow: hidden;
   /* Espacement pour la safe area (home bar iOS) */
-  padding-bottom: max(6px, calc(var(--safe-bottom) * 0.5));
+  padding-bottom: max(8px, calc(var(--safe-bottom) + 6px));
 }
-.map-toolbar::-webkit-scrollbar { display: none; }
 
 .tool-btn {
   flex-shrink: 0;
@@ -1242,12 +1250,21 @@ body {
     background: var(--accent);
   }
 
-  /* Action bar : montre les libellés texte à côté des icônes */
+  /* Action bar : ligne unique, labels visibles, spacer restauré */
   .map-actionbar {
     height: 44px;
+    min-height: 44px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     gap: 4px;
     padding: 0 8px;
+    row-gap: 0;
   }
+  .map-actionbar::-webkit-scrollbar { display: none; }
+  .abar-spacer { display: block; flex: 1; min-width: 4px; }
   .abar-btn {
     min-width: 36px;
     height: 36px;
@@ -1270,6 +1287,9 @@ body {
   /* Toolbar vertical à gauche */
   .map-toolbar {
     flex-direction: column;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-content: stretch;
     width: 56px;
     height: auto;
     padding: 8px 0;
