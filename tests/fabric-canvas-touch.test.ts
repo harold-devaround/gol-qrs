@@ -1044,3 +1044,76 @@ describe('view manipulation does not interact with tool state', () => {
     expect(store.getAll()).toHaveLength(0);
   });
 });
+
+/* ── Snap threshold: easier snap-to-point, esp. on touch ─────────── */
+
+describe('findSnap threshold (per input modality)', () => {
+  const point = { type: 'point', x: 100, y: 100, visible: true };
+
+  it('default mouse snapThreshold is generous enough for casual clicks', () => {
+    // A click 15 screen-px away from an existing point should still snap.
+    const snap = mc.findSnap({ x: 115, y: 100 }, [point]);
+    expect(snap).toEqual({ x: 100, y: 100 });
+  });
+
+  it('mouse snap does not catch points far beyond the mouse threshold', () => {
+    // Beyond the mouse threshold (18px) but within the touch threshold (32px)
+    // → mouse mode must NOT snap.
+    mc._lastInputType = 'mouse';
+    const snap = mc.findSnap({ x: 125, y: 100 }, [point]);
+    expect(snap).toBeNull();
+  });
+
+  it('touch snap uses the larger touchSnapThreshold', () => {
+    // 25 screen-px away — outside mouse threshold (18) but inside touch (32).
+    mc._lastInputType = 'touch';
+    const snap = mc.findSnap({ x: 125, y: 100 }, [point]);
+    expect(snap).toEqual({ x: 100, y: 100 });
+  });
+
+  it('touch snap still does not catch points beyond the touch threshold', () => {
+    mc._lastInputType = 'touch';
+    const snap = mc.findSnap({ x: 140, y: 100 }, [point]);
+    expect(snap).toBeNull();
+  });
+
+  it('snapEnabled=false disables snapping regardless of threshold', () => {
+    mc.snapEnabled = false;
+    mc._lastInputType = 'touch';
+    const snap = mc.findSnap({ x: 105, y: 100 }, [point]);
+    expect(snap).toBeNull();
+  });
+
+  it('thresholds scale inversely with zoom (screen-px stay constant)', () => {
+    // At zoom=2, the screen-px threshold corresponds to half as many world units.
+    fabricMock.fc.getZoom = vi.fn(() => 2);
+    mc._lastInputType = 'mouse';
+    // 8 world-units = 16 screen-px → within the 18px mouse threshold → snap
+    expect(mc.findSnap({ x: 108, y: 100 }, [point])).toEqual({ x: 100, y: 100 });
+    // 12 world-units = 24 screen-px → beyond 18px mouse threshold → no snap
+    expect(mc.findSnap({ x: 112, y: 100 }, [point])).toBeNull();
+  });
+});
+
+describe('mouse:down updates _lastInputType for snap', () => {
+  it('mouse pointerdown sets _lastInputType to mouse', () => {
+    mc._lastInputType = 'touch'; // start in touch mode
+    const mdHandler = getFabricHandler('mouse:down');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100, pointerType: 'mouse' }) });
+    expect(mc._lastInputType).toBe('mouse');
+  });
+
+  it('touch pointerdown (via Fabric mouse:down buffer) sets _lastInputType to touch', () => {
+    mc._lastInputType = 'mouse';
+    const mdHandler = getFabricHandler('mouse:down');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100, pointerType: 'touch' }) });
+    expect(mc._lastInputType).toBe('touch');
+  });
+
+  it('mouse:move also updates _lastInputType (so hover-snap uses the right radius)', () => {
+    mc._lastInputType = 'mouse';
+    const mmHandler = getFabricHandler('mouse:move');
+    mmHandler({ e: makeFabricPointerEvent({ clientX: 100, clientY: 100, pointerType: 'touch' }) });
+    expect(mc._lastInputType).toBe('touch');
+  });
+});

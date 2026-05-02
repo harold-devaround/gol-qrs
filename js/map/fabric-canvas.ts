@@ -40,9 +40,13 @@ export class MapCanvas extends EventEmitter {
     this.mapImage = null;
     this._bgImage = null;
 
-    // Snap
+    // Snap — screen-pixel radius within which a click/tap snaps to an existing point.
+    // Mouse uses a generous radius for easy snapping; touch uses an even larger one
+    // to compensate for finger imprecision so taps near a point reliably snap to it.
     this.snapEnabled = true;
-    this.snapThreshold = 10;
+    this.snapThreshold = 18;
+    this.touchSnapThreshold = 32;
+    this._lastInputType = 'mouse';
     this.currentSnap = null;
 
     // External callbacks (used by map-section & tools)
@@ -192,7 +196,10 @@ export class MapCanvas extends EventEmitter {
 
   findSnap(worldPt, shapes) {
     if (!this.snapEnabled) return null;
-    const threshold = this.snapThreshold / this.zoom;
+    const screenThreshold = this._lastInputType === 'touch'
+      ? this.touchSnapThreshold
+      : this.snapThreshold;
+    const threshold = screenThreshold / this.zoom;
     let best = null, bestDist = threshold;
     for (const s of shapes) {
       if (!s.visible) continue;
@@ -276,6 +283,10 @@ export class MapCanvas extends EventEmitter {
       const e = opt.e;
       const { sx, sy } = this._canvasXY(e);
 
+      // Track the input modality so findSnap can pick the right threshold
+      // (touch fingers need a more generous snap radius than a mouse cursor).
+      this._lastInputType = e.pointerType === 'touch' ? 'touch' : 'mouse';
+
       // Middle button or space+left or right → pan
       if (e.button === 1 || e.button === 2 || (e.button === 0 && this._spaceDown)) {
         this._panning = true;
@@ -303,6 +314,9 @@ export class MapCanvas extends EventEmitter {
     this.fc.on('mouse:move', (opt) => {
       if (this._pinching) return;
       const e = opt.e;
+      // Keep the input modality up to date so hover-snap (without a prior
+      // mousedown) uses the appropriate radius.
+      this._lastInputType = e.pointerType === 'touch' ? 'touch' : 'mouse';
       const { sx, sy } = this._canvasXY(e);
 
       if (this._panning && this._panStart) {
