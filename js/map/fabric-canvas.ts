@@ -400,6 +400,11 @@ export class MapCanvas extends EventEmitter {
     const active = new Map(); // pointerId → PointerEvent
     // Stable ordered pair of IDs for the current pinch gesture
     let pinchIds = [];
+    // True while we are cleaning up after a pinch and waiting for ALL fingers
+    // of the gesture to lift. Any pointerup/cancel during this window must be
+    // hidden from Fabric so it does not synthesize a phantom mouseup that the
+    // active tool would mistake for a tap.
+    let suppressTouchUps = false;
 
     const getPinchDist = () => {
       const p0 = active.get(pinchIds[0]);
@@ -429,12 +434,20 @@ export class MapCanvas extends EventEmitter {
           this._lastPinchCenter = getPinchCenter();
           this._panning = false;
           this._panStart = null;
-          // Discard any pending single-touch tap — the gesture is now a pinch, not a tap
+          // From now until every finger of this gesture lifts, suppress Fabric's
+          // pointerup so no phantom tap is delivered to the active tool.
+          suppressTouchUps = true;
+          // Capture whether finger 1 had progressed past the tap threshold into
+          // a real drag (mousedown was emitted to the tool). Only in that case
+          // does the tool need to be told to cancel its in-progress action.
+          // A still-buffered tap has not been communicated to the tool, so
+          // discarding it silently respects the rule that moving the view
+          // must not interact with tools.
+          const hadActiveDrag = this._touchMoved;
           this._pendingTouchDown = null;
           this._touchStartScreen = null;
           this._touchMoved = false;
-          // Signal active tool to cancel any in-progress action started by finger 1
-          this.emit('cancel');
+          if (hadActiveDrag) this.emit('cancel');
         }
       }
     }, { capture: true });
@@ -465,14 +478,21 @@ export class MapCanvas extends EventEmitter {
 
     const endPointer = (e) => {
       if (e.pointerType !== 'touch') return;
-      const wasPinching = this._pinching;
       active.delete(e.pointerId);
+      // Hide every pointerup of the gesture from Fabric while we are cleaning
+      // up after a pinch — not just the first to lift. Otherwise the last
+      // finger's pointerup would fire Fabric's mouse:up with hasMoved=false
+      // (reset at pinch start) and the active tool would interpret it as a
+      // tap at the lift position.
+      if (suppressTouchUps) e.stopImmediatePropagation();
       if (active.size < 2) {
-        if (wasPinching) e.stopImmediatePropagation(); // prevent Fabric's mouseup after pinch
         this._pinching = false;
         this._lastPinchDist = 0;
         this._lastPinchCenter = null;
         pinchIds = [];
+      }
+      if (active.size === 0) {
+        suppressTouchUps = false;
       }
     };
 
