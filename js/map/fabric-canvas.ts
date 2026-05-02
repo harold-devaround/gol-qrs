@@ -68,6 +68,15 @@ export class MapCanvas extends EventEmitter {
     this._touchStartScreen = null;  // { x, y } — screen position at touchstart
     this._touchMoved = false;       // true once touch moved beyond tap threshold
 
+    // Set when a pinch starts. Fabric (with default enablePointerEvents=false)
+    // listens for `touchend` on `document` and synthesizes a `mouse:up` event
+    // once ALL fingers have lifted (touches.length === 0). That synthesized
+    // mouse:up arrives AFTER our pointerup capture handlers have already
+    // cleared `_pinching`/`suppressTouchUps`, so the touch branch of mouse:up
+    // would otherwise emit a phantom tap to the active tool. This flag tells
+    // mouse:up to consume and drop that one trailing event.
+    this._suppressNextTouchUp = false;
+
     // Click detection for non-touch: track movement between mousedown and mouseup
     this._mouseDownScreen = null;   // { x, y } — screen position at mousedown
     this._mouseHasMoved = false;    // true once cursor moved beyond tap threshold after mousedown
@@ -362,6 +371,16 @@ export class MapCanvas extends EventEmitter {
       const wp = this.toWorld(sx, sy);
 
       if (e.pointerType === 'touch') {
+        // After a pinch, Fabric's `touchend` (on document) synthesizes a
+        // trailing mouse:up. Drop it so the active tool doesn't see a phantom
+        // tap at the lift position.
+        if (this._suppressNextTouchUp) {
+          this._suppressNextTouchUp = false;
+          this._pendingTouchDown = null;
+          this._touchStartScreen = null;
+          this._touchMoved = false;
+          return;
+        }
         // Capture hasMoved before resetting state
         const hasMoved = this._touchMoved;
         const pending = this._pendingTouchDown;
@@ -451,6 +470,11 @@ export class MapCanvas extends EventEmitter {
           // From now until every finger of this gesture lifts, suppress Fabric's
           // pointerup so no phantom tap is delivered to the active tool.
           suppressTouchUps = true;
+          // After all fingers lift, Fabric's document-level `touchend` listener
+          // will fire one synthesized mouse:up event we cannot block from here
+          // (different event type, different element). Mark it so the mouse:up
+          // handler drops it.
+          this._suppressNextTouchUp = true;
           // Capture whether finger 1 had progressed past the tap threshold into
           // a real drag (mousedown was emitted to the tool). Only in that case
           // does the tool need to be told to cancel its in-progress action.

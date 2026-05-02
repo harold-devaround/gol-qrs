@@ -460,11 +460,77 @@ describe('pinch end', () => {
 
     const upSpy = vi.fn();
     mc.on('mouseup', upSpy);
-    // New tap
     const mdHandler = getFabricHandler('mouse:down');
     const muHandler = getFabricHandler('mouse:up');
+    // Fabric's synthesized post-pinch mouse:up (from touchend on document)
+    // — must be consumed silently by the suppression flag.
+    muHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 200, pointerType: 'touch' }) });
+    expect(upSpy).not.toHaveBeenCalled();
+
+    // New tap
     mdHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
     muHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    expect(upSpy).toHaveBeenCalledOnce();
+  });
+
+  it("Fabric's synthesized mouse:up after pinch (touchend on document) does NOT reach tools (regression: phantom mouse:up triggers tool)", () => {
+    // Real-world bug: with Fabric's default `enablePointerEvents=false`, Fabric
+    // listens for `touchend` on `document`, not on the upper canvas. Once all
+    // fingers lift, Fabric synthesizes one mouse:up event (touches.length===0).
+    // Our pointer-capture handler cannot intercept that — it's a different
+    // event type on a different element. Without the _suppressNextTouchUp
+    // flag, the active tool would receive a phantom mouseup at the lift point.
+    const upSpy = vi.fn();
+    mc.on('mouseup', upSpy);
+
+    startPinch();
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
+
+    // Now Fabric's _onTouchEnd fires (touches.length === 0) and emits mouse:up.
+    const muHandler = getFabricHandler('mouse:up');
+    muHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 200, pointerType: 'touch' }) });
+
+    expect(upSpy).not.toHaveBeenCalled();
+  });
+
+  it('only the FIRST trailing mouse:up after a pinch is suppressed; subsequent taps work', () => {
+    // Make sure the suppression is one-shot: a tap after the pinch must
+    // still produce a mousedown+mouseup pair.
+    const downSpy = vi.fn();
+    const upSpy = vi.fn();
+    mc.on('mousedown', downSpy);
+    mc.on('mouseup', upSpy);
+
+    startPinch();
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 1, clientX: 100, clientY: 200 }),
+    );
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 2, clientX: 200, clientY: 200 }),
+    );
+    // Fabric's synthesized post-pinch mouse:up — should be eaten.
+    const muHandler = getFabricHandler('mouse:up');
+    muHandler({ e: makeFabricPointerEvent({ clientX: 200, clientY: 200, pointerType: 'touch' }) });
+    expect(upSpy).not.toHaveBeenCalled();
+    expect(mc._suppressNextTouchUp).toBe(false);
+
+    // Now a real tap.
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerdown', { pointerId: 5, clientX: 300, clientY: 400 }),
+    );
+    const mdHandler = getFabricHandler('mouse:down');
+    mdHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+    fabricMock.upperCanvasEl.dispatchEvent(
+      makePointerEvent('pointerup', { pointerId: 5, clientX: 300, clientY: 400 }),
+    );
+    muHandler({ e: makeFabricPointerEvent({ clientX: 300, clientY: 400 }) });
+
+    expect(downSpy).toHaveBeenCalledOnce();
     expect(upSpy).toHaveBeenCalledOnce();
   });
 });
