@@ -29,21 +29,17 @@ function esc(s) {
 export function initMap(container) {
   container.innerHTML = `
     <div class="map-layout">
-      <div class="map-actionbar" id="map-actionbar"></div>
+      <div class="map-actionbar" id="map-actionbar" role="toolbar" aria-label="Barre d'actions"></div>
       <div class="map-main" id="map-main">
-        <div class="map-toolbar" id="map-toolbar"></div>
         <div class="map-canvas-wrap" id="map-canvas-wrap"></div>
-        <div class="map-props-backdrop" id="map-props-backdrop"></div>
-        <div class="map-tools-backdrop" id="map-tools-backdrop"></div>
-        <button class="btn-tools-toggle" id="btn-tools-toggle" title="Outils">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <div class="map-toolbar" id="map-toolbar" role="toolbar" aria-label="Outils de dessin"></div>
+        <div class="map-props-backdrop" id="map-props-backdrop" aria-hidden="true"></div>
+        <button class="btn-props-toggle" id="btn-props-toggle" type="button" aria-label="Afficher les propriétés" title="Propriétés">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <button class="btn-props-toggle" id="btn-props-toggle" title="Propriétés">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-        </button>
-        <div class="map-props" id="map-props"></div>
+        <aside class="map-props" id="map-props" aria-label="Propriétés"></aside>
       </div>
-      <div class="map-statusbar" id="map-statusbar"></div>
+      <div class="map-statusbar" id="map-statusbar" role="status" aria-live="polite"></div>
     </div>`;
 
   // Core modules
@@ -78,44 +74,27 @@ export function initMap(container) {
   function openProps() {
     propsEl.classList.add('open');
     backdropEl.classList.add('open');
+    backdropEl.setAttribute('aria-hidden', 'false');
     propsToggleBtn.classList.add('active');
+    propsToggleBtn.setAttribute('aria-expanded', 'true');
+    propsToggleBtn.setAttribute('aria-label', 'Masquer les propriétés');
   }
   function closeProps() {
     propsEl.classList.remove('open');
     backdropEl.classList.remove('open');
+    backdropEl.setAttribute('aria-hidden', 'true');
     propsToggleBtn.classList.remove('active');
+    propsToggleBtn.setAttribute('aria-expanded', 'false');
+    propsToggleBtn.setAttribute('aria-label', 'Afficher les propriétés');
   }
+  propsToggleBtn.setAttribute('aria-expanded', 'false');
   propsToggleBtn.addEventListener('click', () => {
     if (propsEl.classList.contains('open')) closeProps(); else openProps();
   });
   backdropEl.addEventListener('click', closeProps);
 
-  // ──── Portrait toolbar dropdown toggle ────────────────
-  const toolbarEl = container.querySelector('#map-toolbar');
-  const toolsBackdropEl = container.querySelector('#map-tools-backdrop');
-  const toolsToggleBtn = container.querySelector('#btn-tools-toggle');
-  const isPortrait = () => window.matchMedia('(orientation: portrait)').matches;
-
-  function openTools() {
-    toolbarEl.classList.add('open');
-    toolsBackdropEl.classList.add('open');
-    toolsToggleBtn.classList.add('active');
-  }
-  function closeTools() {
-    toolbarEl.classList.remove('open');
-    toolsBackdropEl.classList.remove('open');
-    toolsToggleBtn.classList.remove('active');
-  }
-  toolsToggleBtn.addEventListener('click', () => {
-    if (toolbarEl.classList.contains('open')) closeTools(); else openTools();
-  });
-  toolsBackdropEl.addEventListener('click', closeTools);
-  // Close toolbar panel when orientation switches to landscape
-  let _toolsResizeTimer = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(_toolsResizeTimer);
-    _toolsResizeTimer = setTimeout(() => { if (!isPortrait()) closeTools(); }, 150);
-  });
+  // ──── (Tools toolbar is always visible — bottom strip on mobile, side rail on desktop) ────
+  function closeTools() { /* no-op : la toolbar est toujours visible */ }
 
   // Render shapes via canvas callback
   canvas.onRenderShapes = (ctx) => {
@@ -153,8 +132,8 @@ export function initMap(container) {
   store.on('selection', () => {
     canvas.requestRender();
     updateProps();
-    // On mobile, auto-open props panel when a shape is selected
-    if (window.matchMedia('(max-width: 640px)').matches && store.getSelected().length > 0) {
+    // Auto-open props sheet on small screens when a shape is selected
+    if (window.matchMedia('(max-width: 899px)').matches && store.getSelected().length > 0) {
       openProps();
     }
   });

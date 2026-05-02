@@ -2,19 +2,24 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
   <title>GOL — Outils d'Analyse</title>
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
 
-  <nav id="app-nav">
+  <nav id="app-nav" aria-label="Navigation principale">
     <span class="nav-brand">GOL</span>
-    <div class="nav-tabs">
-      <button class="nav-tab active" data-section="qr">Q&amp;R</button>
-      <button class="nav-tab" data-section="map">Carte MHF</button>
-      <button class="nav-tab" data-section="cp">Cartes Postales</button>
-      <button class="nav-tab" data-section="tuiles">Tuiles</button>
+    <div class="nav-tabs" role="tablist">
+      <button class="nav-tab active" role="tab" aria-selected="true" data-section="qr">Q&amp;R</button>
+      <button class="nav-tab" role="tab" aria-selected="false" data-section="map">Carte</button>
+      <button class="nav-tab" role="tab" aria-selected="false" data-section="cp">CP</button>
+      <button class="nav-tab" role="tab" aria-selected="false" data-section="tuiles">Tuiles</button>
     </div>
   </nav>
 
