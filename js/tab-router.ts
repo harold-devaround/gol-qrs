@@ -43,8 +43,15 @@ export function initTabRouter(
         const el = sections.find(s => s.id === `section-${target}`);
         const initFn = inits[target];
         if (initFn && el) {
+          // Catch BOTH synchronous throws and rejected promises so a broken
+          // section module never breaks the whole app.
           try {
-            initFn(el);
+            const result = initFn(el);
+            if (result && typeof (result as Promise<unknown>).then === 'function') {
+              (result as Promise<unknown>).catch(e => {
+                console.error(`[tab-router] Failed to initialize section "${target}":`, e);
+              });
+            }
           } catch (e) {
             console.error(`[tab-router] Failed to initialize section "${target}":`, e);
           }

@@ -453,3 +453,95 @@ describe('snapToAngle', () => {
     expect(p.y).toBe(5);
   });
 });
+
+/* ── Edge-case branch coverage ────────────────────────── */
+
+describe('signedAngle wrap-around branches', () => {
+  it('wraps angles greater than +π back into (-π, π]', () => {
+    // a at angle ~ -3π/4, b at angle ~ +3π/4 → raw diff = +3π/2 → wraps to -π/2
+    const v = { x: 0, y: 0 };
+    const a = { x: -1, y: -1 };
+    const b = { x: -1, y: +1 };
+    const d = signedAngle(a, v, b);
+    expect(d).toBeCloseTo(-Math.PI / 2);
+  });
+
+  it('wraps angles less than -π forward into (-π, π]', () => {
+    // a at +3π/4, b at -3π/4 → raw diff = -3π/2 → wraps to +π/2
+    const v = { x: 0, y: 0 };
+    const a = { x: -1, y: +1 };
+    const b = { x: -1, y: -1 };
+    const d = signedAngle(a, v, b);
+    expect(d).toBeCloseTo(+Math.PI / 2);
+  });
+});
+
+describe('clipLineToRect parallel-out-of-bounds case', () => {
+  it('returns null for a horizontal line above the rect (parallel, no intersection)', () => {
+    const rect = { x: 0, y: 0, w: 10, h: 10 };
+    // y = -5 is parallel to the top edge but outside the rect
+    const result = clipLineToRect({ x: 0, y: -5 }, { x: 10, y: -5 }, rect);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for a vertical line to the left of the rect', () => {
+    const rect = { x: 0, y: 0, w: 10, h: 10 };
+    const result = clipLineToRect({ x: -5, y: 0 }, { x: -5, y: 10 }, rect);
+    expect(result).toBeNull();
+  });
+
+  it('clips a horizontal line that crosses the rect entirely', () => {
+    const rect = { x: 0, y: 0, w: 10, h: 10 };
+    const result = clipLineToRect({ x: -5, y: 5 }, { x: 15, y: 5 }, rect);
+    expect(result).not.toBeNull();
+    expect(result[0].y).toBeCloseTo(5);
+    expect(result[1].y).toBeCloseTo(5);
+  });
+});
+
+describe('lineLineIntersection parallel branch', () => {
+  it('returns null for parallel lines', () => {
+    const result = lineLineIntersection(
+      { x: 0, y: 0 }, { x: 10, y: 0 },
+      { x: 0, y: 5 }, { x: 10, y: 5 },
+    );
+    expect(result).toBeNull();
+  });
+
+  it('returns null for collinear lines', () => {
+    const result = lineLineIntersection(
+      { x: 0, y: 0 }, { x: 10, y: 0 },
+      { x: 5, y: 0 }, { x: 15, y: 0 },
+    );
+    expect(result).toBeNull();
+  });
+});
+
+describe('pointToSegmentDist degenerate segment', () => {
+  it('treats a zero-length segment as a single point', () => {
+    const a = { x: 5, y: 5 };
+    expect(pointToSegmentDist({ x: 5, y: 5 }, a, a)).toBe(0);
+    expect(pointToSegmentDist({ x: 5, y: 8 }, a, a)).toBe(3);
+  });
+});
+
+describe('pointToLineDist degenerate line', () => {
+  it('treats a zero-length line as a single point', () => {
+    const a = { x: 0, y: 0 };
+    expect(pointToLineDist({ x: 3, y: 4 }, a, a)).toBe(5);
+  });
+});
+
+describe('projectOnLine degenerate line', () => {
+  it('returns the line origin when a === b', () => {
+    const a = { x: 7, y: 9 };
+    expect(projectOnLine({ x: 100, y: 100 }, a, a)).toEqual({ x: 7, y: 9 });
+  });
+});
+
+describe('circumcenter colinear triangle', () => {
+  it('returns null for three colinear points', () => {
+    expect(circumcenter({ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 })).toBeNull();
+  });
+});
+

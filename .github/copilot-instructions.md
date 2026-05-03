@@ -17,7 +17,7 @@
 - **Après CHAQUE modification de code** : lancer `npm test`. Si un test échoue, le corriger immédiatement avant de continuer.
 - **Après CHAQUE session** : mettre à jour `PROJECT.md` (nombre de tests, fonctionnalités, historique).
 - **Couverture** : toute nouvelle logique (fonctions, classes, branches) doit avoir des tests unitaires correspondants.
-- **Le nombre de tests ne doit jamais diminuer** : actuellement **433 tests** dans 13 fichiers.
+- **Le nombre de tests ne doit jamais diminuer** : actuellement **504 tests** dans 15 fichiers.
 - Ne jamais sauter les tests, même pour les petits changements, le wiring UI ou les refactors.
 
 ### Documentation obligatoire
@@ -44,7 +44,7 @@
 
 ### Commandes
 ```bash
-npm test               # vitest run — lance les 433 tests
+npm test               # vitest run — lance les 504 tests
 npm run test:watch     # vitest en mode watch
 npm run test:coverage  # vitest run --coverage
 npm run typecheck      # tsc --noEmit — vérification TypeScript

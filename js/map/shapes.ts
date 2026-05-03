@@ -41,6 +41,29 @@ const PALETTE = [
 let _ci = 0;
 function nextColor() { return PALETTE[_ci++ % PALETTE.length]; }
 
+/**
+ * Re-sync the colour rotation index against an existing shape set so that the
+ * NEXT colour picked is the least-used one. Called after restore/load/clear so
+ * undo/redo doesn't cause colour clustering. PALETTE order is the tie-breaker.
+ */
+export function syncColorIndex(shapes) {
+  if (!Array.isArray(shapes) || shapes.length === 0) { _ci = 0; return; }
+  const counts = new Map();
+  for (const c of PALETTE) counts.set(c, 0);
+  for (const s of shapes) {
+    if (s && typeof s.color === 'string' && counts.has(s.color)) {
+      counts.set(s.color, counts.get(s.color) + 1);
+    }
+  }
+  let best = PALETTE[0];
+  let bestCount = counts.get(best);
+  for (const c of PALETTE) {
+    const cnt = counts.get(c);
+    if (cnt < bestCount) { best = c; bestCount = cnt; }
+  }
+  _ci = PALETTE.indexOf(best);
+}
+
 /* ── Factories ────────────────────────────────────────── */
 
 export function createPoint(x, y, opts = {}) {

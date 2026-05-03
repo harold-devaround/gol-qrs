@@ -32,12 +32,21 @@ export class SelectTool extends ToolBase {
     if (hit) {
       if (e.shiftKey) {
         this.store.toggleSelect(hit.id);
+        // If the shift-click DESELECTED the shape, do not arm a drag —
+        // otherwise the user's next mouse-move would move a shape they
+        // explicitly removed from the selection.
+        const stillSelected = this.store.getSelected().some(s => s.id === hit.id);
+        if (stillSelected) {
+          this._dragging = true;
+          this._dragStart = { ...wp };
+          this._moved = false;
+        }
       } else {
         this.store.select(hit.id);
+        this._dragging = true;
+        this._dragStart = { ...wp };
+        this._moved = false;
       }
-      this._dragging = true;
-      this._dragStart = { ...wp };
-      this._moved = false;
     } else {
       this.store.deselectAll();
     }

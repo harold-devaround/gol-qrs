@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { listSaves, saveSlot, loadSlot, deleteSlot, renameSlot, saveOptions, loadOptions } from '../js/map/save-manager.js';
 
 // Mock localStorage
@@ -164,6 +164,65 @@ describe('save-manager', () => {
     it('deleteSlot does not throw when storage is corrupt', () => {
       store['gol-qrs-saves'] = '{not json';
       expect(() => deleteSlot('foo')).not.toThrow();
+    });
+  });
+
+  describe('storage quota / write failures', () => {
+    it('saveSlot does not throw when localStorage.setItem fails (e.g. quota)', () => {
+      const orig = mockStorage.setItem;
+      mockStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      expect(() => saveSlot('overflow', shapes)).not.toThrow();
+      expect(consoleError).toHaveBeenCalled();
+      mockStorage.setItem = orig;
+      consoleError.mockRestore();
+    });
+
+    it('saveOptions does not throw when localStorage.setItem fails', () => {
+      const orig = mockStorage.setItem;
+      mockStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      expect(() => saveOptions({ unit: 'cm' })).not.toThrow();
+      expect(consoleError).toHaveBeenCalled();
+      mockStorage.setItem = orig;
+      consoleError.mockRestore();
+    });
+
+    it('renameSlot does not throw when localStorage.setItem fails', () => {
+      saveSlot('a', shapes);
+      const orig = mockStorage.setItem;
+      mockStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      expect(() => renameSlot('a', 'b')).not.toThrow();
+      mockStorage.setItem = orig;
+      consoleError.mockRestore();
+    });
+  });
+
+  describe('loadSlot resilience', () => {
+    it('returns null when slot exists but shapes is not an array', () => {
+      mockStorage.setItem(
+        'gol-qrs-saves',
+        JSON.stringify({ broken: { shapes: 'not-an-array', date: 0 } }),
+      );
+      expect(loadSlot('broken')).toBeNull();
+    });
+
+    it('returns null when slot is missing entirely', () => {
+      expect(loadSlot('does-not-exist')).toBeNull();
+    });
+
+    it('returns null and logs when JSON.stringify throws during deep-clone', () => {
+      saveSlot('x', shapes);
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const origStringify = JSON.stringify;
+      // Force the deep-clone path inside loadSlot to throw.
+      JSON.stringify = () => { throw new Error('boom'); };
+      const result = loadSlot('x');
+      JSON.stringify = origStringify;
+      expect(result).toBeNull();
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
     });
   });
 });

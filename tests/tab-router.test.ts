@@ -252,4 +252,54 @@ describe('initTabRouter', () => {
       expect(sections[1].classList.contains('active')).toBe(true);
     });
   });
+
+  describe('async init error isolation', () => {
+    it('a rejected promise from an init function does not crash the router', async () => {
+      const { tabs, sections } = setup();
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const inits = {
+        map: () => Promise.reject(new Error('async boom')),
+      };
+      initTabRouter(tabs, sections, inits, ['qr']);
+
+      expect(() => tabs[1].click()).not.toThrow();
+      // Wait a microtask so the rejection handler runs
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('rejected init still allows other tabs to activate', async () => {
+      const { tabs, sections } = setup();
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const initCP = vi.fn();
+      const inits = {
+        map: () => Promise.reject(new Error('async boom')),
+        cp: initCP,
+      };
+      initTabRouter(tabs, sections, inits, ['qr']);
+
+      tabs[1].click();
+      await Promise.resolve();
+      tabs[2].click();
+      expect(initCP).toHaveBeenCalledOnce();
+      consoleError.mockRestore();
+    });
+
+    it('a resolved promise does not log any error', async () => {
+      const { tabs, sections } = setup();
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const inits = {
+        map: () => Promise.resolve('ok'),
+      };
+      initTabRouter(tabs, sections, inits, ['qr']);
+
+      tabs[1].click();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(consoleError).not.toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+  });
 });

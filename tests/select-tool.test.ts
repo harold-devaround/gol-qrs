@@ -103,6 +103,45 @@ describe('SelectTool', () => {
       expect(store.get('a').selected).toBe(true);
       expect(store.get('b').selected).toBe(false);
     });
+
+    it('shift-click that DESELECTS a shape does not arm a drag (regression)', () => {
+      // Bug: shift-click deselects a shape, then a tiny mouse-move would still
+      // move that shape because _dragging was set to true unconditionally.
+      const store = new ShapeStore();
+      store.add(makePoint('a', 10, 10));
+      store.add(makePoint('b', 50, 50));
+      const tool = new SelectTool();
+      tool.ctx = makeCtx(store);
+      store.selectMany(['a', 'b']);
+
+      // Shift-click on 'b' → 'b' should be deselected and no drag should start.
+      tool.onMouseDown({ x: 50, y: 50 }, { shiftKey: true });
+      expect(store.get('b').selected).toBe(false);
+
+      // Mouse-move should NOT push a history snapshot or move 'a'.
+      const histSave = tool.ctx.history.save;
+      const before = { x: store.get('a').x, y: store.get('a').y };
+      tool.onMouseMove({ x: 100, y: 100 });
+      expect(histSave).not.toHaveBeenCalled();
+      expect(store.get('a').x).toBe(before.x);
+      expect(store.get('a').y).toBe(before.y);
+    });
+
+    it('shift-click that ADDS a shape to selection arms a drag normally', () => {
+      const store = new ShapeStore();
+      store.add(makePoint('a', 10, 10));
+      store.add(makePoint('b', 50, 50));
+      const tool = new SelectTool();
+      tool.ctx = makeCtx(store);
+      store.select('a');
+
+      tool.onMouseDown({ x: 50, y: 50 }, { shiftKey: true });
+      expect(store.getSelected()).toHaveLength(2);
+
+      // A subsequent mouse-move beyond the threshold should trigger history.save and move both.
+      tool.onMouseMove({ x: 60, y: 60 });
+      expect(tool.ctx.history.save).toHaveBeenCalled();
+    });
   });
 
   describe('keyboard', () => {

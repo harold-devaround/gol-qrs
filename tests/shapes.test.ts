@@ -4,7 +4,7 @@ import {
   createPoint, createSegment, createLine, createCircle,
   createTriangle, createAngle, createMedian, createBisector,
   moveShape, shapeInfo, hitTestShape, renderShape, TYPE_LABELS,
-  syncNextId, releaseId, generateConcentrics,
+  syncNextId, releaseId, generateConcentrics, syncColorIndex,
 } from '../js/map/shapes.js';
 import { Measurement } from '../js/map/measurement.js';
 
@@ -506,5 +506,57 @@ describe('generateConcentrics', () => {
     const result = generateConcentrics(c, 10, 4);
     const ids = [c.id, ...result.map(r => r.id)];
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+/* -- syncColorIndex ------------------------------------- */
+
+describe('syncColorIndex', () => {
+  const PALETTE = [
+    '#e74c3c','#3498db','#2ecc71','#f39c12',
+    '#9b59b6','#1abc9c','#e67e22','#e91e63',
+  ];
+
+  it('after restoring a state where every colour was used once, the next pick can be any (round-robin from start)', () => {
+    syncColorIndex([]);
+    syncNextId([]);
+    const first = createPoint(0, 0).color;
+    expect(PALETTE).toContain(first);
+  });
+
+  it('biases towards the least-used colour after a restore', () => {
+    syncColorIndex([]);
+    syncNextId([]);
+    // Existing world has many of PALETTE[0] and PALETTE[1] but NONE of PALETTE[2].
+    const existing = [
+      { type: 'point', color: PALETTE[0] },
+      { type: 'point', color: PALETTE[0] },
+      { type: 'point', color: PALETTE[1] },
+      { type: 'point', color: PALETTE[1] },
+      { type: 'point', color: PALETTE[3] },
+      { type: 'point', color: PALETTE[4] },
+      { type: 'point', color: PALETTE[5] },
+      { type: 'point', color: PALETTE[6] },
+      { type: 'point', color: PALETTE[7] },
+    ];
+    syncColorIndex(existing);
+    // The next colour assigned MUST be the unused one (PALETTE[2]).
+    const next = createPoint(0, 0).color;
+    expect(next).toBe(PALETTE[2]);
+  });
+
+  it('handles non-array input gracefully (resets index)', () => {
+    expect(() => syncColorIndex(null)).not.toThrow();
+    expect(() => syncColorIndex(undefined)).not.toThrow();
+  });
+
+  it('ignores shapes whose colour is not part of the palette', () => {
+    syncColorIndex([]);
+    const next = createPoint(0, 0).color;
+    syncColorIndex([{ type: 'point', color: '#abcdef' }, { type: 'point', color: '' }]);
+    // Index reset to 0, next pick should be PALETTE[0]
+    const after = createPoint(0, 0).color;
+    expect(PALETTE).toContain(next);
+    expect(after).toBe(PALETTE[0]);
   });
 });

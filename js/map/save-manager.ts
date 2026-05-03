@@ -32,8 +32,15 @@ function _readAll(): SavesMap {
   } catch { return {}; }
 }
 
-function _writeAll(saves: SavesMap): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
+function _writeAll(saves: SavesMap): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
+    return true;
+  } catch (e) {
+    // QuotaExceededError or storage disabled — log and let the caller continue.
+    console.error('[save-manager] Failed to persist saves:', e);
+    return false;
+  }
 }
 
 /** List all saved slots: [{ name, date, count }] sorted by date desc. */
@@ -55,7 +62,13 @@ export function saveSlot(name: string, shapes: Shape[]): void {
 export function loadSlot(name: string): Shape[] | null {
   const saves = _readAll();
   const slot = saves[name];
-  return slot ? JSON.parse(JSON.stringify(slot.shapes)) : null;
+  if (!slot || !Array.isArray(slot.shapes)) return null;
+  try {
+    return JSON.parse(JSON.stringify(slot.shapes));
+  } catch (e) {
+    console.error('[save-manager] Failed to deserialize slot', name, e);
+    return null;
+  }
 }
 
 /** Delete a named slot. */
@@ -77,7 +90,11 @@ export function renameSlot(oldName: string, newName: string): void {
 
 /** Save user options (unit mode, calibration mode, snap, etc.). */
 export function saveOptions(opts: Record<string, unknown>): void {
-  localStorage.setItem(OPTIONS_KEY, JSON.stringify(opts));
+  try {
+    localStorage.setItem(OPTIONS_KEY, JSON.stringify(opts));
+  } catch (e) {
+    console.error('[save-manager] Failed to persist options:', e);
+  }
 }
 
 /** Load user options. Returns the object or null. */

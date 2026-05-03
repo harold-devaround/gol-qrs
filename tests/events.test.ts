@@ -74,4 +74,54 @@ describe('EventEmitter', () => {
     expect(spy1).not.toHaveBeenCalled();
     expect(spy2).toHaveBeenCalledOnce();
   });
+
+  describe('error isolation and iteration safety', () => {
+    it('a throwing listener does not prevent subsequent listeners from running', () => {
+      const ee = new EventEmitter();
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const before = vi.fn();
+      const boom = vi.fn(() => { throw new Error('listener boom'); });
+      const after = vi.fn();
+      ee.on('evt', before);
+      ee.on('evt', boom);
+      ee.on('evt', after);
+
+      expect(() => ee.emit('evt', 1)).not.toThrow();
+      expect(before).toHaveBeenCalledWith(1);
+      expect(boom).toHaveBeenCalledWith(1);
+      expect(after).toHaveBeenCalledWith(1);
+      expect(consoleError).toHaveBeenCalled();
+      consoleError.mockRestore();
+    });
+
+    it('a listener removing another listener mid-emit does not skip the remaining', () => {
+      const ee = new EventEmitter();
+      const c = vi.fn();
+      const b = vi.fn();
+      const a = vi.fn(() => ee.off('evt', b));
+      ee.on('evt', a);
+      ee.on('evt', b);
+      ee.on('evt', c);
+
+      ee.emit('evt');
+      // 'a' runs, removes 'b'. With snapshot iteration, 'b' still runs this turn,
+      // and 'c' definitely runs (regression guard against Set mutation skipping).
+      expect(a).toHaveBeenCalledOnce();
+      expect(c).toHaveBeenCalledOnce();
+    });
+
+    it('a listener adding a new listener mid-emit does not call the new one this turn', () => {
+      const ee = new EventEmitter();
+      const newOne = vi.fn();
+      const adder = vi.fn(() => ee.on('evt', newOne));
+      ee.on('evt', adder);
+
+      ee.emit('evt');
+      expect(adder).toHaveBeenCalledOnce();
+      expect(newOne).not.toHaveBeenCalled();
+
+      ee.emit('evt');
+      expect(newOne).toHaveBeenCalledOnce();
+    });
+  });
 });

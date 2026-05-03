@@ -1,5 +1,5 @@
 import { EventEmitter } from '../utils/events.js';
-import { releaseId, syncNextId } from './shapes.js';
+import { releaseId, syncNextId, syncColorIndex } from './shapes.js';
 import type { Shape } from '../types.js';
 
 /**
@@ -55,6 +55,7 @@ export class ShapeStore extends EventEmitter {
   clear(): void {
     for (const s of this.shapes) releaseId(s.id);
     this.shapes = [];
+    syncColorIndex(this.shapes);
     this.emit('change');
     this.emit('selection');
   }
@@ -67,6 +68,8 @@ export class ShapeStore extends EventEmitter {
     this.shapes = JSON.parse(JSON.stringify(snap));
     // Rebuild the global ID pool so freed IDs can be reused (e.g. after undo).
     syncNextId(this.shapes);
+    // Resync colour rotation so newly created shapes pick the least-used hue.
+    syncColorIndex(this.shapes);
     this.emit('change');
     this.emit('selection');
   }
