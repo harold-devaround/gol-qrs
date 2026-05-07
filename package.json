@@ -1,17 +1,21 @@
 {
   "name": "gol-qrs",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0-alpha.0",
+  "description": "GOL — Outils d'Analyse (React + Vite + react-konva)",
+  "main": "src/main.tsx",
+  "type": "module",
   "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "build": "tsc -p tsconfig.app.json && vite build",
+    "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json && node -e \"const{mkdirSync,copyFileSync}=require('fs');mkdirSync('dist/vendor',{recursive:true});copyFileSync('node_modules/fabric/dist/index.js','dist/vendor/fabric.js');\"",
-    "postinstall": "npm run build",
-    "lint": "eslint js/ tests/",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc --noEmit",
+    "lint": "eslint js/ tests/ src/",
+    "check": "npm run typecheck && npm run test && npm run build",
+    "build:legacy": "tsc -p tsconfig.build.json && node -e \"const{mkdirSync,copyFileSync}=require('fs');mkdirSync('dist/vendor',{recursive:true});copyFileSync('node_modules/fabric/dist/index.js','dist/vendor/fabric.js');\""
   },
   "repository": {
     "type": "git",
@@ -20,20 +24,34 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "bugs": {
     "url": "https://github.com/harold-devaround/gol-qrs/issues"
   },
   "homepage": "https://github.com/harold-devaround/gol-qrs#readme",
+  "dependencies": {
+    "konva": "^9.3.16",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-konva": "^18.2.10",
+    "react-router-dom": "^7.1.1"
+  },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/node": "^25.6.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^4.1.5",
+    "autoprefixer": "^10.4.20",
+    "fabric": "^7.2.0",
     "jsdom": "^29.1.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.1",
+    "vite": "^6.0.7",
     "vitest": "^4.1.4"
-  },
-  "dependencies": {
-    "fabric": "^7.2.0"
   }
 }

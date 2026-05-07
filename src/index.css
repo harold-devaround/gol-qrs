@@ -1,0 +1,23 @@
+/*
+ * Legacy theme tokens are kept in css/main.css and imported here so the
+ * existing visual identity is preserved while components are progressively
+ * migrated to Tailwind utility classes.
+ *
+ * NOTE: @import must precede every other statement (PostCSS requirement),
+ * so it lives above the Tailwind directives.
+ */
+@import "../css/main.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg text-text font-sans antialiased;
+}
