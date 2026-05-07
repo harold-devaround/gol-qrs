@@ -23,12 +23,10 @@ export default defineConfig({
       include: ["js/**/*.ts", "src/**/*.{ts,tsx}"],
       exclude: [
         "js/map/map-section.ts",
-        "js/app.ts",
-        "js/viewers/**",
-        "js/qr/**",
         "js/map/tools/**",
         "src/main.tsx",
         "src/router.tsx",
+        "src/legacy-bridge.ts",
         "src/**/*.test.{ts,tsx}",
       ],
       thresholds: {

@@ -18,7 +18,7 @@
 - **Après CHAQUE modification de code** : lancer `npm test`. Si un test échoue, le corriger immédiatement avant de continuer.
 - **Après CHAQUE session** : mettre à jour `PROJECT.md` (nombre de tests, fonctionnalités, historique).
 - **Couverture** : toute nouvelle logique (fonctions, classes, branches, composants React) doit avoir des tests unitaires correspondants.
-- **Le nombre de tests ne doit jamais diminuer** : actuellement **522 tests** (504 legacy dans `tests/` + 18 React dans `src/**/*.test.tsx`).
+- **Le nombre de tests ne doit jamais diminuer** : actuellement **490 tests** (472 legacy dans `tests/` + 18 React dans `src/**/*.test.tsx`).
 - Ne jamais sauter les tests, même pour les petits changements, le wiring UI ou les refactors.
 
 ### Documentation obligatoire
@@ -42,7 +42,6 @@
 - **TypeScript 6** — strict, deux projets (`tsconfig.app.json` + `tsconfig.json` legacy)
 - **Vitest 4 + jsdom** + **@testing-library/react** — tests unitaires (Node + React)
 - **Fabric.js 7** — moteur canvas du legacy `js/map/fabric-canvas.ts`. Exposé en global via `src/legacy-bridge.ts` (`globalThis.fabric = fabric`).
-- **Konva 9** + **react-konva** — installés pour une future migration de `fabric-canvas.ts` (cf. PROJECT.md).
 - **CSS legacy** : `css/main.css` importé par `src/index.css`, complète Tailwind.
 - ES Modules (`"type": "module"`).
 
@@ -50,7 +49,7 @@
 
 - **`src/`** = code React (composants, router, layout, viewers, sections).
 - **`js/`** = code historique non-React (moteur carte, store, outils, utils). `MapSection` React le monte via dynamic `import()` + `useEffect`.
-- **`tests/`** = tests legacy (504, Vitest + jsdom).
+- **`tests/`** = tests legacy (472, Vitest + jsdom).
 - **`src/**/\*.test.tsx`** = tests des composants React (18, `@testing-library/react`).
 - Pour ajouter une nouvelle section UI : composant React dans `src/sections/<name>/`, route ajoutée dans `src/router.tsx`.
 
@@ -61,13 +60,12 @@ npm run dev            # Vite dev server (HMR) sur http://localhost:5173
 npm start              # Alias de `npm run dev`
 npm run build          # tsc -p tsconfig.app.json && vite build → dist/
 npm run preview        # Prévisualise dist/
-npm test               # vitest run — lance les 522 tests
+npm test               # vitest run — lance les 490 tests
 npm run test:watch     # vitest en mode watch
 npm run test:coverage  # vitest run --coverage
 npm run typecheck      # tsc app + tsc legacy
 npm run lint           # eslint js/ tests/ src/
 npm run check          # typecheck + test + build (CI complet)
-npm run build:legacy   # Ancien pipeline (tsc → dist/app.js + dist/vendor/fabric.js, rollback)
 ```
 
 ### Déploiement Render (Static Site)
