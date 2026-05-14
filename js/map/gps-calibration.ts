@@ -432,7 +432,7 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
       if (top.lon == null || top.lon % 15 !== 0) continue;
       if (top.lon < -165 || top.lon > 165) continue;
       const bot = detected.lonTicksBottom[i];
-      const x = Math.round((top.x + bot.x) / 2);
+      const x = (top.x + bot.x) / 2;
       lonLines.push({ x, lon: top.lon });
     }
   } else if (detected?.lonTicks?.length >= 10) {
@@ -460,7 +460,7 @@ export function buildGradGrid(cal, detected, includeIntermediate = false) {
       const lat   = left.lat ?? right.lat;
       if (lat == null || lat % 15 !== 0) continue;
       if (lat < -75 || lat > 75) continue;
-      const y = Math.round((left.y + right.y) / 2);
+      const y = (left.y + right.y) / 2;
       latLines.push({ y, lat });
     }
   } else if (detected?.latTicks?.length >= 8) {
