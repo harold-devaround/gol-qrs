@@ -6,7 +6,8 @@ import { Measurement } from './measurement.js';
 import { ToolManager } from './tools/manager.js';
 import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics } from './shapes.js';
 import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.js';
-import { detectGraduations, buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
+import { buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
+import gpsGraduations from '../../data/gps-graduations.json';
 
 /** WorldMap MHF — auto-loaded on init. Physical: 160cm wide × 120cm tall. */
 const WORLDMAP_SRC = '2019_WorldMap_MHF_1.2x1.6m.jpg';
@@ -60,7 +61,9 @@ export function initMap(container) {
   let gradGridMode  = 'none'; // 'none' | 'major' | 'all'
   let gradGridData  = null; // { lonLines, latLines } from buildGradGrid (includes intermediates)
 
-  let detectedGrads = null; // raw detection output from detectGraduations
+  // Pre-detected graduation tick positions (dumped from detectGraduations,
+  // see scripts/dump-graduations.mjs). Includes a +1px shift on lon/lat ticks.
+  const detectedGrads = gpsGraduations;
   const labelVisibility = {
     point: true, segment: true, line: true, circle: true,
     triangle: true, angle: true, median: true, bisector: true,
@@ -817,15 +820,10 @@ export function initMap(container) {
     calRatios.avg = (calRatios.height + calRatios.width) / 2;
     applyCalRatio();
 
-    // Detect graduation tick marks from image borders, update GPS calibration
-    try {
-      detectedGrads = detectGraduations(img);
-      measurement.setGPSCalibration(detectedGrads);
-      gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads, true);
-    } catch (_) {
-      // Detection failed — leave default calibration in place
-      gradGridData = buildGradGrid(measurement.gpsCalibration, null, true);
-    }
+    // GPS calibration and graduation ticks are pre-loaded from
+    // data/gps-graduations.json (no runtime detection needed).
+    measurement.setGPSCalibration(detectedGrads);
+    gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads, true);
 
     // Restore saved view state or keep fitToView default
     const opts = loadOptions();
