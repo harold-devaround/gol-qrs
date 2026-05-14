@@ -158,6 +158,51 @@ export function pointInCircle(pt: Point, center: Point, radius: number): boolean
   return distance(pt, center) <= radius;
 }
 
+/**
+ * Azimuth (compass bearing) from point `a` to point `b`, in degrees from
+ * north, increasing clockwise, in the range [0, 360). Image coordinates are
+ * assumed (y axis pointing down → north = −y direction).
+ */
+export function azimuthDeg(a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (dx === 0 && dy === 0) return 0;
+  const deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+  return (deg + 360) % 360;
+}
+
+/** Names of the 16 compass points, indexed 0..15 starting from North, clockwise. */
+export const COMPASS_16 = [
+  'N', 'NNE', 'NE', 'ENE',
+  'E', 'ESE', 'SE', 'SSE',
+  'S', 'SSW', 'SW', 'WSW',
+  'W', 'WNW', 'NW', 'NNW',
+] as const;
+
+/** Convert an azimuth in degrees [0, 360) to its 16-point compass code. */
+export function compassCode16(deg: number): string {
+  const norm = ((deg % 360) + 360) % 360;
+  const idx = Math.round(norm / 22.5) % 16;
+  return COMPASS_16[idx];
+}
+
+/**
+ * Scout "code boussolaire" alphabet (LaToileScoute).
+ * 36 characters mapped to azimuth ranges of 10° each:
+ *   A = 000–009°, B = 010–019°, …, Z = 250–259°,
+ *   0 = 260–269°, 1 = 270–279°, …, 9 = 350–359°.
+ * 360° wraps to A (= 0°).
+ */
+export const COMPASS_BOUSSOLAIRE =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' as const;
+
+/** Convert an azimuth in degrees to its scout "code boussolaire" character. */
+export function compassCodeBoussolaire(deg: number): string {
+  const norm = ((deg % 360) + 360) % 360;
+  const idx = Math.floor(norm / 10) % 36;
+  return COMPASS_BOUSSOLAIRE[idx];
+}
+
 /** Snap candidates for known shapes. */
 export function getSnapPoints(shape: Shape): Point[] {
   switch (shape.type) {

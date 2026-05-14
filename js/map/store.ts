@@ -52,6 +52,37 @@ export class ShapeStore extends EventEmitter {
     if (s) { Object.assign(s, props); this.emit('change'); }
   }
 
+  /**
+   * Reorder a shape within the list. `direction` is -1 (move up) or +1 (move down).
+   * No-op if the shape is missing or already at the boundary.
+   */
+  move(id: number, direction: -1 | 1): void {
+    const i = this.shapes.findIndex(s => s.id === id);
+    if (i < 0) return;
+    const j = i + direction;
+    if (j < 0 || j >= this.shapes.length) return;
+    const [s] = this.shapes.splice(i, 1);
+    this.shapes.splice(j, 0, s);
+    this.emit('change');
+  }
+
+  /**
+   * Reorder shapes to match the given id sequence. Ids absent from the
+   * current store are ignored; shapes absent from the sequence keep their
+   * relative order at the end.
+   */
+  setOrder(ids: number[]): void {
+    const byId = new Map(this.shapes.map(s => [s.id, s]));
+    const next: Shape[] = [];
+    for (const id of ids) {
+      const s = byId.get(id);
+      if (s) { next.push(s); byId.delete(id); }
+    }
+    for (const s of byId.values()) next.push(s);
+    this.shapes = next;
+    this.emit('change');
+  }
+
   clear(): void {
     for (const s of this.shapes) releaseId(s.id);
     this.shapes = [];

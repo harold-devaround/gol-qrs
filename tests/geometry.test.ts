@@ -7,6 +7,8 @@ import {
   triangleArea, centroid, circumcenter,
   pointInTriangle, pointInCircle, getSnapPoints,
   parallelThrough, snapToAngle,
+  azimuthDeg, compassCode16, COMPASS_16,
+  compassCodeBoussolaire, COMPASS_BOUSSOLAIRE,
 } from '../js/utils/geometry.js';
 
 describe('distance', () => {
@@ -542,6 +544,111 @@ describe('projectOnLine degenerate line', () => {
 describe('circumcenter colinear triangle', () => {
   it('returns null for three colinear points', () => {
     expect(circumcenter({ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 10, y: 0 })).toBeNull();
+  });
+});
+
+describe('azimuthDeg', () => {
+  it('returns 0 for due north (image y decreases northward)', () => {
+    expect(azimuthDeg({ x: 0, y: 10 }, { x: 0, y: 0 })).toBe(0);
+  });
+  it('returns 90 for due east', () => {
+    expect(azimuthDeg({ x: 0, y: 0 }, { x: 10, y: 0 })).toBe(90);
+  });
+  it('returns 180 for due south', () => {
+    expect(azimuthDeg({ x: 0, y: 0 }, { x: 0, y: 10 })).toBe(180);
+  });
+  it('returns 270 for due west', () => {
+    expect(azimuthDeg({ x: 10, y: 0 }, { x: 0, y: 0 })).toBe(270);
+  });
+  it('returns 45 for north-east', () => {
+    expect(azimuthDeg({ x: 0, y: 1 }, { x: 1, y: 0 })).toBeCloseTo(45);
+  });
+  it('returns 0 for identical points', () => {
+    expect(azimuthDeg({ x: 5, y: 5 }, { x: 5, y: 5 })).toBe(0);
+  });
+  it('result is in [0, 360)', () => {
+    expect(azimuthDeg({ x: 0, y: 0 }, { x: -1, y: 1 })).toBeGreaterThanOrEqual(0);
+    expect(azimuthDeg({ x: 0, y: 0 }, { x: -1, y: 1 })).toBeLessThan(360);
+  });
+});
+
+describe('compassCode16', () => {
+  it('exposes 16 compass codes starting at N clockwise', () => {
+    expect(COMPASS_16.length).toBe(16);
+    expect(COMPASS_16[0]).toBe('N');
+    expect(COMPASS_16[4]).toBe('E');
+    expect(COMPASS_16[8]).toBe('S');
+    expect(COMPASS_16[12]).toBe('W');
+  });
+  it('maps cardinal degrees to cardinal codes', () => {
+    expect(compassCode16(0)).toBe('N');
+    expect(compassCode16(90)).toBe('E');
+    expect(compassCode16(180)).toBe('S');
+    expect(compassCode16(270)).toBe('W');
+  });
+  it('maps inter-cardinal degrees', () => {
+    expect(compassCode16(45)).toBe('NE');
+    expect(compassCode16(135)).toBe('SE');
+    expect(compassCode16(225)).toBe('SW');
+    expect(compassCode16(315)).toBe('NW');
+  });
+  it('maps secondary inter-cardinals at 22.5° steps', () => {
+    expect(compassCode16(22.5)).toBe('NNE');
+    expect(compassCode16(67.5)).toBe('ENE');
+    expect(compassCode16(112.5)).toBe('ESE');
+    expect(compassCode16(157.5)).toBe('SSE');
+    expect(compassCode16(202.5)).toBe('SSW');
+    expect(compassCode16(247.5)).toBe('WSW');
+    expect(compassCode16(292.5)).toBe('WNW');
+    expect(compassCode16(337.5)).toBe('NNW');
+  });
+  it('rounds to nearest 22.5° sector', () => {
+    expect(compassCode16(10)).toBe('N');
+    expect(compassCode16(12)).toBe('NNE');
+    expect(compassCode16(33)).toBe('NNE');
+    expect(compassCode16(34)).toBe('NE');
+  });
+  it('wraps around at 360°', () => {
+    expect(compassCode16(360)).toBe('N');
+    expect(compassCode16(359)).toBe('N');
+    expect(compassCode16(-22.5)).toBe('NNW');
+    expect(compassCode16(720)).toBe('N');
+  });
+});
+
+describe('compassCodeBoussolaire', () => {
+  it('exposes a 36-character alphabet (A–Z then 0–9)', () => {
+    expect(COMPASS_BOUSSOLAIRE).toBe('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+    expect(COMPASS_BOUSSOLAIRE.length).toBe(36);
+  });
+  it('maps 000–009° to A', () => {
+    expect(compassCodeBoussolaire(0)).toBe('A');
+    expect(compassCodeBoussolaire(5)).toBe('A');
+    expect(compassCodeBoussolaire(9.999)).toBe('A');
+  });
+  it('maps 010–019° to B and 020–029° to C', () => {
+    expect(compassCodeBoussolaire(10)).toBe('B');
+    expect(compassCodeBoussolaire(19)).toBe('B');
+    expect(compassCodeBoussolaire(20)).toBe('C');
+    expect(compassCodeBoussolaire(29)).toBe('C');
+  });
+  it('maps 250–259° to Z (last letter)', () => {
+    expect(compassCodeBoussolaire(250)).toBe('Z');
+    expect(compassCodeBoussolaire(259)).toBe('Z');
+  });
+  it('maps 260–269° to "0" (first digit)', () => {
+    expect(compassCodeBoussolaire(260)).toBe('0');
+    expect(compassCodeBoussolaire(269)).toBe('0');
+  });
+  it('maps 350–359° to "9" (last digit)', () => {
+    expect(compassCodeBoussolaire(350)).toBe('9');
+    expect(compassCodeBoussolaire(359.99)).toBe('9');
+  });
+  it('wraps 360° back to A and handles negative angles', () => {
+    expect(compassCodeBoussolaire(360)).toBe('A');
+    expect(compassCodeBoussolaire(720)).toBe('A');
+    expect(compassCodeBoussolaire(-1)).toBe('9');
+    expect(compassCodeBoussolaire(-10)).toBe('9');
   });
 });
 

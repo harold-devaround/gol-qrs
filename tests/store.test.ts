@@ -199,3 +199,80 @@ describe('ShapeStore', () => {
     });
   });
 });
+
+describe('ShapeStore.move', () => {
+  it('moves a shape up (toward index 0) by -1', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.add(makeShape(3));
+    s.move(2, -1);
+    expect(s.getAll().map(x => x.id)).toEqual([2, 1, 3]);
+  });
+  it('moves a shape down by +1', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.add(makeShape(3));
+    s.move(1, 1);
+    expect(s.getAll().map(x => x.id)).toEqual([2, 1, 3]);
+  });
+  it('does nothing at the top boundary', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.move(1, -1);
+    expect(s.getAll().map(x => x.id)).toEqual([1, 2]);
+  });
+  it('does nothing at the bottom boundary', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.move(2, 1);
+    expect(s.getAll().map(x => x.id)).toEqual([1, 2]);
+  });
+  it('emits change on a successful move', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    const spy = vi.fn();
+    s.on('change', spy);
+    s.move(2, -1);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+  it('does not emit change on a no-op move', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    const spy = vi.fn();
+    s.on('change', spy);
+    s.move(1, -1);
+    s.move(99, 1);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('ShapeStore.setOrder', () => {
+  it('reorders shapes to match the given id sequence', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.add(makeShape(3));
+    s.setOrder([3, 1, 2]);
+    expect(s.getAll().map(x => x.id)).toEqual([3, 1, 2]);
+  });
+  it('appends shapes missing from the sequence at the end', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.add(makeShape(3));
+    s.setOrder([3]);
+    expect(s.getAll().map(x => x.id)).toEqual([3, 1, 2]);
+  });
+  it('ignores unknown ids in the sequence', () => {
+    const s = new ShapeStore();
+    s.add(makeShape(1));
+    s.add(makeShape(2));
+    s.setOrder([99, 2, 42, 1]);
+    expect(s.getAll().map(x => x.id)).toEqual([2, 1]);
+  });
+});

@@ -7,6 +7,7 @@ import { ToolManager } from './tools/manager.js';
 import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics } from './shapes.js';
 import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.js';
 import { buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
+import { distance, azimuthDeg, compassCodeBoussolaire } from '../utils/geometry.js';
 import gpsGraduations from '../../data/gps-graduations.json';
 
 /** WorldMap MHF — auto-loaded on init. Physical: 160cm wide × 120cm tall. */
@@ -38,6 +39,7 @@ export function initMap(container) {
         <button class="btn-props-toggle" id="btn-props-toggle" type="button" aria-label="Afficher les propriétés" title="Propriétés">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
+        <div class="map-props-resizer" id="map-props-resizer" role="separator" aria-orientation="vertical" aria-label="Redimensionner le panneau" title="Glisser pour redimensionner"></div>
         <aside class="map-props" id="map-props" aria-label="Propriétés"></aside>
       </div>
       <div class="map-statusbar" id="map-statusbar" role="status" aria-live="polite"></div>
@@ -95,6 +97,45 @@ export function initMap(container) {
     if (propsEl.classList.contains('open')) closeProps(); else openProps();
   });
   backdropEl.addEventListener('click', closeProps);
+
+  // ──── Props panel resizer (desktop) ───────────────────
+  const resizerEl = container.querySelector('#map-props-resizer');
+  const mainEl = container.querySelector('#map-main');
+  const PROPS_WIDTH_KEY = 'gol-qrs:props-width';
+  const PROPS_WIDTH_MIN = 220;
+  const PROPS_WIDTH_MAX = 800;
+  try {
+    const saved = parseInt(localStorage.getItem(PROPS_WIDTH_KEY) || '');
+    if (saved >= PROPS_WIDTH_MIN && saved <= PROPS_WIDTH_MAX) {
+      mainEl.style.setProperty('--props-width', saved + 'px');
+    }
+  } catch { /* localStorage unavailable */ }
+  let _resizing = false;
+  resizerEl.addEventListener('pointerdown', (e) => {
+    _resizing = true;
+    resizerEl.setPointerCapture(e.pointerId);
+    resizerEl.classList.add('dragging');
+    document.body.style.cursor = 'ew-resize';
+    e.preventDefault();
+  });
+  resizerEl.addEventListener('pointermove', (e) => {
+    if (!_resizing) return;
+    const rect = mainEl.getBoundingClientRect();
+    const w = Math.max(PROPS_WIDTH_MIN, Math.min(PROPS_WIDTH_MAX, rect.right - e.clientX));
+    mainEl.style.setProperty('--props-width', w + 'px');
+  });
+  const endResize = (e) => {
+    if (!_resizing) return;
+    _resizing = false;
+    try { resizerEl.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    resizerEl.classList.remove('dragging');
+    document.body.style.cursor = '';
+    const cur = mainEl.style.getPropertyValue('--props-width');
+    const px = parseInt(cur);
+    if (px) { try { localStorage.setItem(PROPS_WIDTH_KEY, String(px)); } catch { /* ignore */ } }
+  };
+  resizerEl.addEventListener('pointerup', endResize);
+  resizerEl.addEventListener('pointercancel', endResize);
 
   // ──── (Tools toolbar is always visible — bottom strip on mobile, side rail on desktop) ────
   function closeTools() { /* no-op : la toolbar est toujours visible */ }
@@ -258,6 +299,10 @@ export function initMap(container) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>Charger</span>
         </button>
+        <button class="abar-btn" id="btn-report" title="Rapport (points + segments avec azimut)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>
+          <span>Rapport</span>
+        </button>
       </div>
       <div class="abar-sep"></div>
       <div class="abar-group">
@@ -307,6 +352,7 @@ export function initMap(container) {
     };
     bar.querySelector('#btn-save').onclick = () => openSaveModal();
     bar.querySelector('#btn-load').onclick = () => openLoadModal();
+    bar.querySelector('#btn-report').onclick = () => openReportModal();
 
     // Calibration ratio selection
     bar.querySelectorAll('[data-cal]').forEach(btn => {
@@ -483,6 +529,84 @@ export function initMap(container) {
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
     renderList();
+  }
+
+  // ──── Report Modal ────────────────────────────────────
+
+  function openReportModal() {
+    const isVisible = (s) => s.visible !== false;
+    const all = store.getAll();
+    const points   = all.filter(s => s.type === 'point' && isVisible(s));
+    const segments = all.filter(s => s.type === 'segment' && isVisible(s));
+
+    const labelOf = (s) => (s.label && s.label.trim()) ? s.label : `#${s.id}`;
+
+    // Look up a point shape that coincides with the given (x,y) within 0.5 px.
+    const pointAt = (p) => {
+      let best = null, bestD = 0.5;
+      for (const pt of points) {
+        const d = Math.hypot(pt.x - p.x, pt.y - p.y);
+        if (d <= bestD) { best = pt; bestD = d; }
+      }
+      return best;
+    };
+    const endpointLabel = (p) => {
+      const m = pointAt(p);
+      return m ? esc(labelOf(m)) : `(${p.x.toFixed(1)}, ${p.y.toFixed(1)})`;
+    };
+
+    const pointsRows = points.length
+      ? points.map(p => {
+          const { lon, lat } = measurement.toGPS(p.x, p.y);
+          return `<tr>
+            <td>${esc(labelOf(p))}</td>
+            <td>${esc(measurement.formatCoord(p.x, p.y))}</td>
+            <td>${lon.toFixed(2)}°, ${lat.toFixed(2)}°</td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="3" class="report-empty">Aucun point.</td></tr>`;
+
+    const segRows = segments.length
+      ? segments.map(s => {
+          const az = azimuthDeg(s.p1, s.p2);
+          const code = compassCodeBoussolaire(az);
+          const len = measurement.format(distance(s.p1, s.p2));
+          return `<tr>
+            <td>${esc(labelOf(s))}</td>
+            <td>${endpointLabel(s.p1)} → ${endpointLabel(s.p2)}</td>
+            <td>${len}</td>
+            <td>${az.toFixed(1)}°</td>
+            <td><span class="compass-code">${esc(code)}</span></td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="5" class="report-empty">Aucun segment visible.</td></tr>`;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal modal-wide">
+        <h3>Rapport</h3>
+        <h4 class="report-section-title">Points (${points.length})</h4>
+        <div class="report-table-wrap">
+          <table class="report-table">
+            <thead><tr><th>Label</th><th>Coordonnées</th><th>GPS (lon, lat)</th></tr></thead>
+            <tbody>${pointsRows}</tbody>
+          </table>
+        </div>
+        <h4 class="report-section-title">Segments visibles (${segments.length})</h4>
+        <div class="report-table-wrap">
+          <table class="report-table">
+            <thead><tr><th>Label</th><th>Extrémités</th><th>Longueur</th><th>Azimut</th><th>Code</th></tr></thead>
+            <tbody>${segRows}</tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" id="report-close">Fermer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#report-close').onclick = () => overlay.remove();
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   }
 
   // Update zoom label on viewport changes
@@ -667,8 +791,13 @@ export function initMap(container) {
     // Shape list
     html += '<div class="props-section"><h4>Formes <span class="props-count">' + store.getAll().length + '</span></h4>';
     html += '<div class="shape-list">';
-    for (const s of store.getAll()) {
-      html += `<div class="shape-item ${s.selected ? 'selected' : ''}" data-id="${s.id}">
+    const allShapes = store.getAll();
+    for (let i = 0; i < allShapes.length; i++) {
+      const s = allShapes[i];
+      html += `<div class="shape-item ${s.selected ? 'selected' : ''}" data-id="${s.id}" draggable="true">
+        <span class="shape-drag" title="Glisser pour réordonner" aria-label="Glisser pour réordonner">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+        </span>
         <span class="shape-color-dot" style="background:${esc(s.color)}"></span>
         <span class="shape-label">${TYPE_LABELS[s.type] || s.type} #${s.id}${s.label ? ' — ' + esc(s.label) : ''}</span>
         <button class="shape-vis ${s.visible ? '' : 'hidden'}" data-vis="${s.id}" title="Visibilité">
@@ -770,10 +899,62 @@ export function initMap(container) {
     // Shape list clicks
     panel.querySelectorAll('.shape-item').forEach(item => {
       item.addEventListener('click', e => {
-        if (e.target.closest('.shape-vis') || e.target.closest('.shape-del')) return;
+        if (e.target.closest('.shape-vis') || e.target.closest('.shape-del') || e.target.closest('.shape-drag')) return;
         const id = parseInt(item.dataset.id);
         if (e.shiftKey) store.toggleSelect(id);
         else store.select(id);
+      });
+    });
+
+    // Drag-and-drop reordering
+    const list = panel.querySelector('.shape-list');
+    let _dragId = null;
+    function clearDropMarkers() {
+      list?.querySelectorAll('.drop-above, .drop-below').forEach(el => {
+        el.classList.remove('drop-above', 'drop-below');
+      });
+    }
+    panel.querySelectorAll('.shape-item').forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        _dragId = parseInt(item.dataset.id);
+        item.classList.add('dragging');
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', String(_dragId)); } catch { /* ignore */ }
+        }
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        clearDropMarkers();
+        _dragId = null;
+      });
+      item.addEventListener('dragover', (e) => {
+        if (_dragId === null) return;
+        const targetId = parseInt(item.dataset.id);
+        if (targetId === _dragId) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        const rect = item.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        clearDropMarkers();
+        item.classList.add(before ? 'drop-above' : 'drop-below');
+      });
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('drop-above', 'drop-below');
+      });
+      item.addEventListener('drop', (e) => {
+        if (_dragId === null) return;
+        e.preventDefault();
+        const targetId = parseInt(item.dataset.id);
+        if (targetId === _dragId) return;
+        const rect = item.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        const order = store.getAll().map(s => s.id).filter(id => id !== _dragId);
+        const targetIdx = order.indexOf(targetId);
+        if (targetIdx < 0) return;
+        order.splice(before ? targetIdx : targetIdx + 1, 0, _dragId);
+        history.save();
+        store.setOrder(order);
       });
     });
 
