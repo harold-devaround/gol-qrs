@@ -8,6 +8,7 @@ import {
   pointToSegmentDist, pointToLineDist,
   clipLineToRect,
   triangleArea, pointInTriangle,
+  COMPASS_BOUSSOLAIRE,
 } from '../utils/geometry.js';
 
 /* ── ID & colour generators ───────────────────────────── */
@@ -67,7 +68,7 @@ export function syncColorIndex(shapes) {
 /* ── Factories ────────────────────────────────────────── */
 
 export function createPoint(x, y, opts = {}) {
-  return { type: 'point', id: nextId(), x, y, label: opts.label ?? '', showLabel: opts.showLabel ?? true, showGuides: opts.showGuides ?? false, color: opts.color ?? nextColor(), visible: true, selected: false };
+  return { type: 'point', id: nextId(), x, y, label: opts.label ?? '', showLabel: opts.showLabel ?? true, showGuides: opts.showGuides ?? false, hideDial: opts.hideDial ?? false, color: opts.color ?? nextColor(), visible: true, selected: false };
 }
 
 export function createSegment(p1, p2, opts = {}) {
@@ -142,10 +143,141 @@ function drawLabel(ctx, text, sx, sy, color, offsetX = 0, offsetY = -12) {
   ctx.textBaseline = 'alphabetic';
 }
 
+/* Dial radius: fixed in screen px (same size at any zoom) or fixed in map px
+ * (scales with zoom, so one can zoom in on it). */
+export const DIAL_DEFAULT_RADIUS = 90;       // screen px
+export const DIAL_DEFAULT_MAP_RADIUS = 400;  // map (image) px
+export const DIAL_RADIUS_LIMITS = { screen: [20, 1000], map: [1, 20000] };
+const DIAL_LABEL_GAP = 12;                   // screen px between circle and labels
+
+/* Graduated dial drawn around every point, from map-wide settings (a point can
+ * opt out with `hideDial`). Circle split into N equal sectors, indexed clockwise.
+ * Geometry — `centered` = false → a sector boundary lies on north; true → a
+ * sector is centred on north (every boundary shifted by half a sector).
+ * Indexing — `offset` puts the first sector `offset` sectors clockwise from
+ * the northern one; `labels` picks how indices are written (DIAL_LABEL_MODES). */
+export const DIAL_PRESETS = [8, 26, 36, 80];
+export const DIAL_DEFAULT_DIVISIONS = 80;
+export const DIAL_MIN_DIVISIONS = 2;
+export const DIAL_MAX_DIVISIONS = 360;
+const ALPHABET = COMPASS_BOUSSOLAIRE.slice(0, 26);
+
+/** Label modes: numbers from 0, numbers from 1, A–Z looping, A–Z then 0–9 looping. */
+export const DIAL_LABEL_MODES = {
+  num0:  { name: 'Nombres depuis 0',         text: i => String(i),                   maxLabels: 13 },
+  num1:  { name: 'Nombres depuis 1',         text: i => String(i + 1),               maxLabels: 13 },
+  alpha: { name: 'Alphabet A–Z (en boucle)', text: i => ALPHABET[i % 26],            maxLabels: 40 },
+  alnum: { name: 'A–Z puis 0–9 (en boucle)', text: i => COMPASS_BOUSSOLAIRE[i % 36], maxLabels: 40 },
+};
+
+/** Clamp a user-entered division count to a sane integer range. */
+export function normalizeDialDivisions(n) {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v)) return DIAL_DEFAULT_DIVISIONS;
+  return Math.min(DIAL_MAX_DIVISIONS, Math.max(DIAL_MIN_DIVISIONS, v));
+}
+
+/** Label every `step`th sector so labels never overlap. At the default 90 px
+ * radius single characters (letter modes) fit 40 labels, numbers 13; capacity
+ * grows with the on-screen radius, so zooming in on a map-fixed dial reveals
+ * more labels. Returns 0 when the circle is too small for any label. */
+export function dialLabelStep(n, labels = 'num0', radius = DIAL_DEFAULT_RADIUS) {
+  const max = (DIAL_LABEL_MODES[labels] ?? DIAL_LABEL_MODES.num0).maxLabels;
+  const capacity = max * (radius + DIAL_LABEL_GAP) / (DIAL_DEFAULT_RADIUS + DIAL_LABEL_GAP);
+  if (capacity < 2) return 0;
+  for (const step of [1, 2, 5, 10, 20, 25, 50, 100]) if (n / step <= capacity) return step;
+  return 0;
+}
+
+/** Whether index `i` gets a label. Counting from 1 shows 1, 10, 20… rather than 1, 11, 21…. */
+export function dialIsLabelled(i, step, labels = 'num0') {
+  if (labels === 'num1') return i === 0 || (i + 1) % step === 0;
+  return i % step === 0;
+}
+
+/** Map-wide dial settings used when nothing is saved yet. */
+export const DIAL_DEFAULTS = {
+  show: false, divisions: DIAL_DEFAULT_DIVISIONS, centered: false, labels: 'num0', offset: 0,
+  size: 'screen', radius: DIAL_DEFAULT_RADIUS, mapRadius: DIAL_DEFAULT_MAP_RADIUS,
+};
+
+const clampNum = (v, [lo, hi], fallback) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
+};
+
+/** Sanitize dial settings (possibly partial or from storage): clamp the count,
+ * reduce the offset modulo the count, fall back on unknown label modes and sizes. */
+export function normalizeDial(settings = {}) {
+  const d = { ...DIAL_DEFAULTS, ...settings };
+  const divisions = normalizeDialDivisions(d.divisions);
+  const offset = Math.round(Number(d.offset) || 0);
+  return {
+    show: !!d.show,
+    divisions,
+    centered: !!d.centered,
+    labels: DIAL_LABEL_MODES[d.labels] ? d.labels : 'num0',
+    offset: ((offset % divisions) + divisions) % divisions,
+    size: d.size === 'map' ? 'map' : 'screen',
+    radius: Math.round(clampNum(d.radius, DIAL_RADIUS_LIMITS.screen, DIAL_DEFAULT_RADIUS)),
+    mapRadius: Math.round(clampNum(d.mapRadius, DIAL_RADIUS_LIMITS.map, DIAL_DEFAULT_MAP_RADIUS) * 10) / 10,
+  };
+}
+
+/** On-screen radius of the dial at the given zoom. */
+export function dialScreenRadius(dial, zoom = 1) {
+  return dial.size === 'map' ? dial.mapRadius * zoom : dial.radius;
+}
+
+/** Draw an N-sector dial centred on a point (screen coords). */
+function drawDial(ctx, sx, sy, color, R, { divisions: n, centered, labels, offset }) {
+  if (R < 4) return; // map-fixed dial zoomed far out: nothing readable
+  const step = Math.PI * 2 / n;
+  const shift = centered ? -step / 2 : 0;
+  const boundary = g => -Math.PI / 2 + shift + g * step; // g = geometric sector, 0 at north, clockwise
+  const indexOf = g => ((g - offset) % n + n) % n;       // logical index written on sector g
+  const labelStep = dialLabelStep(n, labels, R);
+  const majorStep = labelStep || n;        // no labels → only the first sector's boundary is heavy
+  const drawMinor = R * step >= 2;          // skip boundaries closer than 2 px at the rim
+  const mode = DIAL_LABEL_MODES[labels];
+  ctx.save();
+  // Outer circle
+  ctx.strokeStyle = color + 'cc';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(sx, sy, R, 0, Math.PI * 2);
+  ctx.stroke();
+  // Sector boundaries — every `majorStep`th one, counted from the first sector, is heavier
+  for (const [major, width, alpha] of [[false, 0.5, '55'], [true, 1, 'cc']]) {
+    ctx.strokeStyle = color + alpha;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    for (let g = 0; g < n; g++) {
+      if ((indexOf(g) % majorStep === 0) !== major) continue;
+      if (!major && !drawMinor) continue;
+      const a = boundary(g);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.cos(a) * R, sy + Math.sin(a) * R);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+  // Label sectors at their middle, just outside the circle
+  for (let g = 0; labelStep && g < n; g++) {
+    const i = indexOf(g);
+    if (!dialIsLabelled(i, labelStep, labels)) continue;
+    const a = boundary(g) + step / 2;
+    drawLabel(ctx, mode.text(i),
+      sx + Math.cos(a) * (R + DIAL_LABEL_GAP),
+      sy + Math.sin(a) * (R + DIAL_LABEL_GAP),
+      color, 0, 5);
+  }
+}
+
 /* ── Renderers ────────────────────────────────────────── */
 
 const RENDERERS = {
-  point(ctx, s, vp, m) {
+  point(ctx, s, vp, m, opts) {
     const p = vp.toScreen(s.x, s.y);
     // Guide lines (crosshair) through the point, extending to viewport edges
     if (s.showGuides) {
@@ -164,7 +296,7 @@ const RENDERERS = {
       ctx.stroke();
       ctx.setLineDash([]);
       // Lat/lon labels at viewport edges (requires measurement with GPS calibration)
-      if (m?.toGPS) {
+      if (m?.toGPS && m.gpsAvailable !== false) {
         const gps = m.toGPS(s.x, s.y);
         const latText = `lat: ${gps.lat.toFixed(2)}°`;
         const lonText = `lon: ${gps.lon.toFixed(2)}°`;
@@ -191,6 +323,10 @@ const RENDERERS = {
         ctx.fillText(lonText, lonLabelX, lonLabelY);
       }
       ctx.restore();
+    }
+    if (opts?.dial?.show && !s.hideDial) {
+      const dial = normalizeDial(opts.dial);
+      drawDial(ctx, p.x, p.y, s.color, dialScreenRadius(dial, vp.zoom ?? 1), dial);
     }
     if (s.selected) selectionGlow(ctx, p.x, p.y, 5);
     dot(ctx, p.x, p.y, 5, s.color);
@@ -454,15 +590,16 @@ export const TYPE_LABELS = {
 
 /* ── Public API ───────────────────────────────────────── */
 
+/** `opts.labelVisibility` hides labels per type; `opts.dial` = map-wide dial settings drawn around points. */
 export function renderShape(ctx, shape, viewport, measurement, opts) {
   if (!shape.visible) return;
   if (opts?.labelVisibility && opts.labelVisibility[shape.type] === false) {
     const saved = shape.showLabel;
     shape.showLabel = false;
-    RENDERERS[shape.type]?.(ctx, shape, viewport, measurement);
+    RENDERERS[shape.type]?.(ctx, shape, viewport, measurement, opts);
     shape.showLabel = saved;
   } else {
-    RENDERERS[shape.type]?.(ctx, shape, viewport, measurement);
+    RENDERERS[shape.type]?.(ctx, shape, viewport, measurement, opts);
   }
 }
 

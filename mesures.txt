@@ -1,0 +1,11 @@
+Trait                       cm      px
+London      OO              24.41   695
+OO          Philadephia     35.18   1000
+Philadephia Paris           31.83   904
+Paris       CAPOO           21.75   620
+CAPOO       Arkhangelsk     36.95   1051
+Arkhangelsk Sevilla         26.27   746
+Sevilla     Remontee        5.70    164
+Remontee    Tel Aviv        14.00   399
+Tel Aviv    Lapu Lapu       37.35   1061
+Lapu Lapu   Portsmouth      54.35   1544

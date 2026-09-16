@@ -18,12 +18,21 @@ export class Measurement extends EventEmitter {
   mode: 'px' | 'cm';
   /** GPS calibration — updated by detectGraduations() after image load */
   gpsCalibration: GPSCalibration;
+  /** False when the active map image has no GPS calibration (lon/lat meaningless). */
+  gpsAvailable: boolean;
 
   constructor() {
     super();
     this.pixelsPerCm = null;
     this.mode = 'px';
     this.gpsCalibration = { ...DEFAULT_CALIBRATION };
+    this.gpsAvailable = true;
+  }
+
+  /** Enable/disable GPS readouts (per map image). */
+  setGPSAvailable(available: boolean): void {
+    this.gpsAvailable = available;
+    this.emit('change');
   }
 
   /**
@@ -123,6 +132,7 @@ export class Measurement extends EventEmitter {
    * Signed decimal degrees (negative = West / South).
    */
   formatGPS(x: number, y: number): string {
+    if (!this.gpsAvailable) return 'GPS indisponible';
     const { lon, lat } = this.toGPS(x, y);
     return `lon: ${lon.toFixed(2)}°  lat: ${lat.toFixed(2)}°`;
   }

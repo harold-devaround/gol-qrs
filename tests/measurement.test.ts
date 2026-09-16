@@ -314,4 +314,32 @@ describe('Measurement', () => {
       expect(result).toMatch(/lon: -?\d+\.\d{2}°\s+lat: -?\d+\.\d{2}°/);
     });
   });
+
+  describe('gpsAvailable', () => {
+    it('defaults to true', () => {
+      expect(new Measurement().gpsAvailable).toBe(true);
+    });
+
+    it('setGPSAvailable(false) makes formatGPS report unavailability', () => {
+      const m = new Measurement();
+      m.setGPSAvailable(false);
+      expect(m.gpsAvailable).toBe(false);
+      expect(m.formatGPS(2222, 1726)).toBe('GPS indisponible');
+    });
+
+    it('setGPSAvailable emits change', () => {
+      const m = new Measurement();
+      let fired = 0;
+      m.on('change', () => fired++);
+      m.setGPSAvailable(false);
+      expect(fired).toBe(1);
+    });
+
+    it('re-enabling restores coordinate formatting', () => {
+      const m = new Measurement();
+      m.setGPSAvailable(false);
+      m.setGPSAvailable(true);
+      expect(m.formatGPS(2222, 1726)).toMatch(/lon: [-\d.]+°\s+lat: [-\d.]+°/);
+    });
+  });
 });

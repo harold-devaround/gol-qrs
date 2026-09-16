@@ -12,6 +12,7 @@ const ROOT_ASSET_PATTERNS = [
   /^\/CPs\//,
   /^\/tuiles\//,
   /^\/2019_WorldMap_MHF_1\.2x1\.6m\.jpg$/,
+  /^\/2019_Multiline\.jpg$/,
   /^\/data\.json$/,
 ];
 
@@ -22,6 +23,7 @@ const PROD_COPY = [
     from: "2019_WorldMap_MHF_1.2x1.6m.jpg",
     to: "2019_WorldMap_MHF_1.2x1.6m.jpg",
   },
+  { from: "2019_Multiline.jpg", to: "2019_Multiline.jpg" },
   { from: "data.json", to: "data.json" },
 ];
 

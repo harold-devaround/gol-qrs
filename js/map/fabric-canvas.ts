@@ -179,6 +179,11 @@ export class MapCanvas extends EventEmitter {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
+        // Drop the previous background so switching maps doesn't stack images
+        if (this._bgImage) {
+          this.fc.remove(this._bgImage);
+          this._bgImage = null;
+        }
         this.mapImage = img;
         const fImg = new fabric.FabricImage(img, {
           left: 0,

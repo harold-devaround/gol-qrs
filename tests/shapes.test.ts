@@ -5,6 +5,7 @@ import {
   createTriangle, createAngle, createMedian, createBisector,
   moveShape, shapeInfo, hitTestShape, renderShape, TYPE_LABELS,
   syncNextId, releaseId, generateConcentrics, syncColorIndex,
+  DIAL_PRESETS, dialLabelStep, normalizeDial, dialScreenRadius,
 } from '../js/map/shapes.js';
 import { Measurement } from '../js/map/measurement.js';
 
@@ -43,6 +44,18 @@ describe('createPoint', () => {
   it('accepts showGuides option', () => {
     const p = createPoint(0, 0, { showGuides: true });
     expect(p.showGuides).toBe(true);
+  });
+
+  it('shows the map-wide dial by default (hideDial false)', () => {
+    expect(createPoint(0, 0).hideDial).toBe(false);
+    expect(createPoint(0, 0, { hideDial: true }).hideDial).toBe(true);
+  });
+
+  it('no longer carries a compass rose or per-point dial settings', () => {
+    const p = createPoint(0, 0);
+    for (const k of ['showCompass', 'showDial', 'dialDivisions', 'dialCentered', 'dialLabels', 'dialOffset']) {
+      expect(p).not.toHaveProperty(k);
+    }
   });
 
   it('assigns unique ids', () => {
@@ -382,6 +395,232 @@ describe('renderShape', () => {
     renderShape(ctx, p, vp, m);
     expect(texts.some(t => t.includes('lat:'))).toBe(false);
     expect(texts.some(t => t.includes('lon:'))).toBe(false);
+  });
+
+  it('omits lat/lon labels when the active map has no GPS calibration', () => {
+    syncNextId([]);
+    const m = new Measurement();
+    m.setGPSAvailable(false);
+    const p = createPoint(2222, 1726, { showGuides: true, color: '#ff0000' });
+    const texts = [];
+    const ctx = {
+      beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, arc: () => {},
+      fill: () => {}, stroke: () => {}, fillRect: () => {},
+      strokeStyle: '', fillStyle: '', lineWidth: 1,
+      setLineDash: () => {},
+      font: '', textAlign: '', textBaseline: '',
+      save: () => {}, restore: () => {},
+      measureText: () => ({ width: 40 }),
+      fillText: (text) => texts.push(String(text)),
+    };
+    const vp = {
+      toScreen: (wx, wy) => ({ x: wx * 0.1, y: wy * 0.1 }),
+      worldRect: () => ({ x: 0, y: 0, w: 8000, h: 6000 }),
+      zoom: 0.1,
+    };
+    renderShape(ctx, p, vp, m);
+    expect(texts.some(t => t.includes('lat:'))).toBe(false);
+    expect(texts.some(t => t.includes('lon:'))).toBe(false);
+  });
+
+  function compassCtx(texts, arcs) {
+    return {
+      beginPath: () => {}, moveTo: () => {}, lineTo: () => {},
+      arc: (x, y, r, a0, a1) => arcs.push({ x, y, r, a0, a1 }),
+      fill: () => {}, stroke: () => {}, fillRect: () => {},
+      strokeStyle: '', fillStyle: '', lineWidth: 1,
+      setLineDash: () => {},
+      font: '', textAlign: '', textBaseline: '',
+      save: () => {}, restore: () => {},
+      measureText: () => ({ width: 20 }),
+      fillText: (text) => texts.push(String(text)),
+    };
+  }
+
+  const compassVp = {
+    toScreen: (wx, wy) => ({ x: wx * 0.1, y: wy * 0.1 }),
+    worldRect: () => ({ x: 0, y: 0, w: 8000, h: 6000 }),
+    zoom: 0.1,
+  };
+
+  // Collect the dial's radial lines (endpoints on the circle) as bearings from north, in degrees.
+  function dialBearings(dial, pointOpts = {}) {
+    syncNextId([]);
+    const texts = [], arcs = [], lines = [];
+    const labels = [];
+    const ctx = compassCtx(texts, arcs);
+    ctx.lineTo = (x, y) => lines.push({ x, y });
+    ctx.fillText = (text, x, y) => { texts.push(String(text)); labels.push({ text: String(text), x, y }); };
+    const point = createPoint(1000, 1000, { color: '#ff0000', ...pointOpts });
+    renderShape(ctx, point, compassVp, new Measurement(), dial === undefined ? undefined : { dial });
+    const cx = 100, cy = 100, R = 90; // point centre in screen coords (vp scale 0.1)
+    const bearings = lines
+      .filter(l => Math.abs(Math.hypot(l.x - cx, l.y - cy) - R) < 1e-6)
+      .map(l => ((Math.atan2(l.x - cx, cy - l.y) * 180 / Math.PI) + 360) % 360);
+    // drawLabel draws at (x, y + 5): undo that to get the label's bearing from north
+    const labelBearing = (t) => {
+      const l = labels.find(l => l.text === t);
+      return ((Math.atan2(l.x - cx, cy - (l.y - 5)) * 180 / Math.PI) + 360) % 360;
+    };
+    const radii = [...new Set(lines.map(l => Math.round(Math.hypot(l.x - cx, l.y - cy) * 1000) / 1000))];
+    return { bearings, texts, lines, labelBearing, radii };
+  }
+  const onGrid = (deg, step, offset) => {
+    const r = (((deg - offset) % step) + step) % step;
+    return Math.min(r, step - r) < 1e-6;
+  };
+
+  it('draws 80 divisions of 4.5° starting at north, numbered by tens', () => {
+    const { bearings, texts } = dialBearings({ show: true });
+    expect(bearings).toHaveLength(80);
+    for (const b of bearings) expect(onGrid(b, 4.5, 0)).toBe(true);
+    expect(bearings.some(b => Math.min(b, 360 - b) < 1e-6)).toBe(true); // a boundary due north
+    for (const n of ['0', '10', '20', '30', '40', '50', '60', '70']) expect(texts).toContain(n);
+    expect(texts).not.toContain('80');
+  });
+
+  it.each(DIAL_PRESETS)('draws the %i-division preset', (n) => {
+    const { bearings, texts } = dialBearings({ show: true, divisions: n });
+    expect(bearings).toHaveLength(n);
+    for (const b of bearings) expect(onGrid(b, 360 / n, 0)).toBe(true);
+    const step = dialLabelStep(n);
+    expect(texts).toContain('0');
+    expect(texts).toContain(String(step * Math.floor((n - 1) / step)));
+    expect(texts).not.toContain(String(n));
+  });
+
+  it('draws a manually entered division count', () => {
+    const { bearings } = dialBearings({ show: true, divisions: 12 });
+    expect(bearings).toHaveLength(12);
+    for (const b of bearings) expect(onGrid(b, 30, 0)).toBe(true);
+  });
+
+  it('centres division 0 on north, shifting every boundary by half a division', () => {
+    const { bearings } = dialBearings({ show: true, divisions: 8, centered: true });
+    expect(bearings).toHaveLength(8);
+    for (const b of bearings) expect(onGrid(b, 45, 22.5)).toBe(true);
+    expect(bearings.some(b => Math.min(b, 360 - b) < 1e-6)).toBe(false); // no boundary due north
+  });
+
+  it('numbers sectors from 1 when asked', () => {
+    const { texts } = dialBearings({ show: true, divisions: 8, labels: 'num1' });
+    for (const n of ['1', '2', '3', '4', '5', '6', '7', '8']) expect(texts).toContain(n);
+    expect(texts).not.toContain('0');
+  });
+
+  it('numbers from 1 show 1, 10, 20… when only some sectors are labelled', () => {
+    const { texts } = dialBearings({ show: true, divisions: 80, labels: 'num1' });
+    for (const n of ['1', '10', '20', '70', '80']) expect(texts).toContain(n);
+    expect(texts).not.toContain('11');
+  });
+
+  it('loops the alphabet A–Z around the dial', () => {
+    const { texts } = dialBearings({ show: true, divisions: 36, labels: 'alpha' });
+    expect(texts.filter(t => t === 'A')).toHaveLength(2); // sector 0 and sector 26
+    expect(texts.filter(t => t === 'J')).toHaveLength(2); // sectors 9 and 35
+    expect(texts.filter(t => t === 'K')).toHaveLength(1);
+    expect(texts).not.toContain('0');
+  });
+
+  it('loops A–Z then 0–9 around the dial', () => {
+    const { texts } = dialBearings({ show: true, divisions: 36, labels: 'alnum' });
+    expect(texts).toHaveLength(36);
+    for (const t of ['A', 'Z', '0', '9']) expect(texts.filter(x => x === t)).toHaveLength(1);
+  });
+
+  it('labels every letter up to 40 sectors, every other one beyond', () => {
+    expect(dialLabelStep(26, 'alpha')).toBe(1);
+    expect(dialLabelStep(36, 'alnum')).toBe(1);
+    expect(dialLabelStep(80, 'alpha')).toBe(2);
+    expect(dialLabelStep(36, 'num0')).toBe(5);
+  });
+
+  it('offsets the first sector clockwise from north', () => {
+    // 8 sectors, a boundary on north: sector g spans [45g, 45g+45]°, label at its middle
+    const plain = dialBearings({ show: true, divisions: 8, labels: 'alpha' });
+    expect(plain.labelBearing('A')).toBeCloseTo(22.5, 6);
+    const shifted = dialBearings({ show: true, divisions: 8, labels: 'alpha', offset: 2 });
+    expect(shifted.labelBearing('A')).toBeCloseTo(112.5, 6);
+    expect(shifted.labelBearing('G')).toBeCloseTo(22.5, 6); // index 6 lands on the northern sector
+    // The geometry does not move
+    expect(shifted.bearings.sort((a, b) => a - b)).toEqual(plain.bearings.sort((a, b) => a - b));
+  });
+
+  it('combines the offset with a sector centred on north', () => {
+    const { labelBearing } = dialBearings({ show: true, divisions: 4, centered: true, labels: 'num1', offset: 1 });
+    expect(labelBearing('1')).toBeCloseTo(90, 6);
+    expect(labelBearing('4')).toBeCloseTo(0, 6);
+  });
+
+  it('normalizes dial settings: defaults, clamped count, offset modulo count, unknown label mode', () => {
+    expect(normalizeDial()).toEqual({ show: false, divisions: 80, centered: false, labels: 'num0', offset: 0, size: 'screen', radius: 90, mapRadius: 400 });
+    expect(normalizeDial({ divisions: 1 }).divisions).toBe(2);
+    expect(normalizeDial({ divisions: 9999 }).divisions).toBe(360);
+    expect(normalizeDial({ divisions: '12.6' }).divisions).toBe(13);
+    expect(normalizeDial({ divisions: 8, offset: -1 }).offset).toBe(7);
+    expect(normalizeDial({ divisions: 8, offset: 17 }).offset).toBe(1);
+    expect(normalizeDial({ labels: 'roman' }).labels).toBe('num0');
+  });
+
+  it('keeps a screen-fixed dial at its radius in screen px, whatever the zoom', () => {
+    const { radii } = dialBearings({ show: true, divisions: 8, size: 'screen', radius: 150 });
+    expect(radii).toEqual([150]);
+  });
+
+  it('scales a map-fixed dial with the zoom (radius in map px × zoom)', () => {
+    // compassVp zoom is 0.1 → 400 map px = 40 screen px
+    const { radii } = dialBearings({ show: true, divisions: 8, size: 'map', mapRadius: 400 });
+    expect(radii).toEqual([40]);
+    expect(dialScreenRadius(normalizeDial({ size: 'map', mapRadius: 400 }), 2)).toBe(800);
+    expect(dialScreenRadius(normalizeDial({ size: 'screen', radius: 120 }), 2)).toBe(120);
+  });
+
+  it('skips a map-fixed dial zoomed out below 4 screen px', () => {
+    const { lines, texts } = dialBearings({ show: true, divisions: 8, size: 'map', mapRadius: 30 });
+    expect(lines).toHaveLength(0);
+    expect(texts).toHaveLength(0);
+  });
+
+  it('shows more labels as the on-screen radius grows, none when too small', () => {
+    expect(dialLabelStep(80, 'num0', 90)).toBe(10);
+    expect(dialLabelStep(80, 'num0', 600)).toBe(2);
+    expect(dialLabelStep(80, 'num0', 10)).toBe(50);
+    expect(dialLabelStep(80, 'num0', 2)).toBe(0);
+    const big = dialBearings({ show: true, divisions: 80, size: 'map', mapRadius: 6000 }); // 600 screen px
+    expect(big.texts).toContain('2');
+    expect(big.texts).toContain('78');
+    const tiny = dialBearings({ show: true, divisions: 8, size: 'screen', radius: 20 });
+    expect(tiny.radii).toEqual([20]);
+  });
+
+  it('normalizes size and radii', () => {
+    expect(normalizeDial({ size: 'weird' }).size).toBe('screen');
+    expect(normalizeDial({ radius: 5 }).radius).toBe(20);
+    expect(normalizeDial({ radius: 5000 }).radius).toBe(1000);
+    expect(normalizeDial({ mapRadius: 123.456 }).mapRadius).toBe(123.5);
+    expect(normalizeDial({ mapRadius: 'abc' }).mapRadius).toBe(400);
+  });
+
+  it('does not draw the dial when it is disabled map-wide', () => {
+    const { lines, texts } = dialBearings({ show: false });
+    expect(lines).toHaveLength(0);
+    expect(texts).not.toContain('10');
+  });
+
+  it('does not draw the dial without render options', () => {
+    expect(dialBearings(undefined).lines).toHaveLength(0);
+  });
+
+  it('does not draw the dial on a point that opts out', () => {
+    const { lines, texts } = dialBearings({ show: true }, { hideDial: true });
+    expect(lines).toHaveLength(0);
+    expect(texts).not.toContain('10');
+  });
+
+  it('draws no compass rose around a point, only the dial', () => {
+    const { texts } = dialBearings({ show: true, divisions: 8 });
+    expect(texts).toContain('0');
+    for (const dir of ['N', 'NE', 'SO', 'NO']) expect(texts).not.toContain(dir);
   });
 });
 

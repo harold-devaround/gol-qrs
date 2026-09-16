@@ -4,16 +4,36 @@ import { ShapeStore } from './store.js';
 import { History } from './history.js';
 import { Measurement } from './measurement.js';
 import { ToolManager } from './tools/manager.js';
-import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics } from './shapes.js';
+import { renderShape, shapeInfo, TYPE_LABELS, generateConcentrics, normalizeDial, DIAL_DEFAULTS, DIAL_RADIUS_LIMITS, DIAL_PRESETS, DIAL_LABEL_MODES, DIAL_MIN_DIVISIONS, DIAL_MAX_DIVISIONS } from './shapes.js';
 import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } from './save-manager.js';
 import { buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
-import { distance, azimuthDeg, compassCodeBoussolaire } from '../utils/geometry.js';
+import { distance, azimuthDeg, compassCodeBoussolaire, angleDeg } from '../utils/geometry.js';
 import gpsGraduations from '../../data/gps-graduations.json';
 
-/** WorldMap MHF — auto-loaded on init. Physical: 160cm wide × 120cm tall. */
-const WORLDMAP_SRC = '2019_WorldMap_MHF_1.2x1.6m.jpg';
-const WORLDMAP_HEIGHT_CM = 120;
-const WORLDMAP_WIDTH_CM = 160;
+/**
+ * Fonds de carte disponibles (combobox « Carte » dans la barre d'action).
+ * - `widthCm`/`heightCm` : dimensions physiques du poster → calibration px/cm.
+ *   `null` quand elles sont inconnues : les mesures restent en pixels.
+ * - `gps` : la calibration GPS pré-détectée (data/gps-graduations.json) ne vaut
+ *   que pour la WorldMap MHF ; sur les autres images lon/lat serait faux.
+ */
+const MAPS = {
+  worldmap: {
+    label: 'WorldMap MHF',
+    src: '2019_WorldMap_MHF_1.2x1.6m.jpg',
+    widthCm: 160,
+    heightCm: 120,
+    gps: true,
+  },
+  multiline: {
+    label: 'Multiline',
+    src: '2019_Multiline.jpg',
+    widthCm: null,
+    heightCm: null,
+    gps: false,
+  },
+};
+const DEFAULT_MAP_KEY = 'worldmap';
 
 /** Escape user-controlled text for safe HTML interpolation (text and attribute contexts). */
 const _escEl = typeof document !== 'undefined' ? document.createElement('div') : null;
@@ -59,6 +79,9 @@ export function initMap(container) {
   let calRatios = null; // { height, width, avg }
   let calMode = 'height'; // 'height' | 'width' | 'avg'
 
+  // Active background map (key of MAPS)
+  let mapKey = DEFAULT_MAP_KEY;
+
   // Graduation grid state
   let gradGridMode  = 'none'; // 'none' | 'major' | 'all'
   let gradGridData  = null; // { lonLines, latLines } from buildGradGrid (includes intermediates)
@@ -66,6 +89,8 @@ export function initMap(container) {
   // Pre-detected graduation tick positions (dumped from detectGraduations,
   // see scripts/dump-graduations.mjs). Includes a +1px shift on lon/lat ticks.
   const detectedGrads = gpsGraduations;
+  // Map-wide divided circle around points (points opt out with `hideDial`)
+  let dialSettings = { ...DIAL_DEFAULTS };
   const labelVisibility = {
     point: true, segment: true, line: true, circle: true,
     triangle: true, angle: true, median: true, bisector: true,
@@ -149,7 +174,7 @@ export function initMap(container) {
     // Always show raw detected tick positions in red (debugging aid)
     renderDetectedTicks(ctx);
     for (const s of store.getVisible()) {
-      renderShape(ctx, s, canvas, measurement, { labelVisibility });
+      renderShape(ctx, s, canvas, measurement, { labelVisibility, dial: dialSettings });
     }
   };
 
@@ -194,6 +219,106 @@ export function initMap(container) {
     menu.style.top  = rect.bottom + 'px';
     menu.style.left = rect.left + 'px';
     menu.classList.add('open');
+    const overflow = rect.left + menu.offsetWidth - (window.innerWidth - 8);
+    if (overflow > 0) menu.style.left = Math.max(8, rect.left - overflow) + 'px';
+  }
+
+  // ──── Divided circle (map-wide) ───────────────────────
+
+  // Radius shown in the menu: screen px, or map radius in the current unit (px or cm)
+  const dialRadiusInCm = () => dialSettings.size === 'map' && measurement.mode === 'cm' && measurement.calibrated;
+  function dialRadiusUnit() {
+    if (dialSettings.size === 'screen') return 'px écran';
+    return dialRadiusInCm() ? 'cm sur la carte' : 'px carte';
+  }
+  function dialRadiusValue() {
+    if (dialSettings.size === 'screen') return dialSettings.radius;
+    return parseFloat(measurement.fromPx(dialSettings.mapRadius).toFixed(2));
+  }
+
+  function dialMenuHtml() {
+    const d = dialSettings;
+    const presets = DIAL_PRESETS.map(n =>
+      `<button class="props-preset-btn ${d.divisions === n ? 'active' : ''}" data-dial-preset="${n}">${n}</button>`).join('');
+    const labelOpts = Object.entries(DIAL_LABEL_MODES).map(([k, m]) =>
+      `<option value="${k}" ${d.labels === k ? 'selected' : ''}>${m.name}</option>`).join('');
+    return `
+      <label class="abar-dropdown-item">
+        <input type="checkbox" id="dial-show" ${d.show ? 'checked' : ''}>
+        <span>Afficher sur les points</span>
+      </label>
+      <div class="dial-menu-row"><span>Divisions</span><div class="props-presets">${presets}<input type="number" value="${d.divisions}" min="${DIAL_MIN_DIVISIONS}" max="${DIAL_MAX_DIVISIONS}" step="1" id="dial-divisions" class="props-input-sm props-input-xs" title="Nombre de secteurs (${DIAL_MIN_DIVISIONS}–${DIAL_MAX_DIVISIONS})"></div></div>
+      <div class="dial-menu-row"><span>Grille</span><select id="dial-align" class="props-input">
+        <option value="start" ${d.centered ? '' : 'selected'}>Une limite sur le nord</option>
+        <option value="center" ${d.centered ? 'selected' : ''}>Un secteur centré sur le nord</option>
+      </select></div>
+      <div class="dial-menu-row"><span>Index</span><select id="dial-labels" class="props-input">${labelOpts}</select></div>
+      <div class="dial-menu-row"><span>Taille</span><select id="dial-size" class="props-input">
+        <option value="screen" ${d.size === 'screen' ? 'selected' : ''}>Fixe à l'écran</option>
+        <option value="map" ${d.size === 'map' ? 'selected' : ''}>Fixe sur la carte (zoomable)</option>
+      </select></div>
+      <div class="dial-menu-row"><span>Rayon</span><div class="props-presets"><input type="number" value="${dialRadiusValue()}" min="0" step="any" id="dial-radius" class="props-input-sm props-input-xs"><span class="props-unit">${dialRadiusUnit()}</span></div></div>
+      <div class="dial-menu-row"><span>Décalage</span><div class="props-presets"><input type="number" value="${d.offset}" step="1" id="dial-offset" class="props-input-sm props-input-xs" title="Secteurs entre le nord et le premier secteur, sens horaire"><span class="props-unit">secteurs, sens horaire</span></div></div>`;
+  }
+
+  // The menu stays open while editing: changes redraw the canvas and patch the
+  // menu in place instead of rebuilding the action bar (which would close it).
+  function bindDialMenu(menu, btn) {
+    const apply = (patch, { refreshInputs = false } = {}) => {
+      dialSettings = normalizeDial({ ...dialSettings, ...patch });
+      btn.classList.toggle('active', dialSettings.show);
+      menu.querySelectorAll('[data-dial-preset]').forEach(b =>
+        b.classList.toggle('active', parseInt(b.dataset.dialPreset) === dialSettings.divisions));
+      if (refreshInputs) {
+        menu.querySelector('#dial-divisions').value = dialSettings.divisions;
+        menu.querySelector('#dial-offset').value = dialSettings.offset;
+        menu.querySelector('#dial-radius').value = dialRadiusValue();
+      }
+      persistOptions();
+      canvas.requestRender();
+    };
+    menu.querySelector('#dial-show').onchange = (e) => apply({ show: e.target.checked });
+    menu.querySelectorAll('[data-dial-preset]').forEach(b => {
+      b.onclick = () => apply({ divisions: parseInt(b.dataset.dialPreset) }, { refreshInputs: true });
+    });
+    const divInput = menu.querySelector('#dial-divisions');
+    divInput.oninput = () => {
+      const val = parseInt(divInput.value);
+      if (val >= DIAL_MIN_DIVISIONS && val <= DIAL_MAX_DIVISIONS) apply({ divisions: val });
+    };
+    // On blur, show the clamped count and the offset reduced modulo the new count
+    divInput.onchange = () => apply({ divisions: divInput.value }, { refreshInputs: true });
+    menu.querySelector('#dial-align').onchange = (e) => apply({ centered: e.target.value === 'center' });
+    menu.querySelector('#dial-labels').onchange = (e) => apply({ labels: e.target.value });
+    // Switching size keeps the circle's current on-screen size, then rebuilds the
+    // menu in place (radius unit changes) — the menu element stays open.
+    menu.querySelector('#dial-size').onchange = (e) => {
+      const size = e.target.value;
+      const [lo, hi] = DIAL_RADIUS_LIMITS.screen;
+      const patch = size === 'map'
+        ? { size, mapRadius: dialSettings.radius / canvas.zoom }
+        : { size, radius: Math.min(hi, Math.max(lo, dialSettings.mapRadius * canvas.zoom)) };
+      apply(patch);
+      menu.innerHTML = dialMenuHtml();
+      bindDialMenu(menu, btn);
+    };
+    const radiusInput = menu.querySelector('#dial-radius');
+    const radiusPatch = (raw) => {
+      const val = parseFloat(raw);
+      if (!(val > 0)) return null;
+      return dialSettings.size === 'screen' ? { radius: val } : { mapRadius: measurement.toPx(val) };
+    };
+    radiusInput.oninput = () => {
+      const patch = radiusPatch(radiusInput.value);
+      if (patch) apply(patch);
+    };
+    radiusInput.onchange = () => apply(radiusPatch(radiusInput.value) ?? {}, { refreshInputs: true });
+    const offInput = menu.querySelector('#dial-offset');
+    offInput.oninput = () => {
+      const val = parseInt(offInput.value);
+      if (Number.isFinite(val)) apply({ offset: val });
+    };
+    offInput.onchange = () => apply({ offset: offInput.value }, { refreshInputs: true });
   }
 
   function updateActionBar() {
@@ -227,7 +352,7 @@ export function initMap(container) {
           <span>Snap</span>
         </button>
         <div class="abar-dropdown" id="grad-grid-dropdown">
-          <button class="abar-btn abar-toggle ${gradGridMode !== 'none' ? 'active' : ''}" id="btn-grad-grid" title="Afficher la grille des graduations GPS">
+          <button class="abar-btn abar-toggle ${gradGridMode !== 'none' ? 'active' : ''} ${gradGridData ? '' : 'disabled'}" id="btn-grad-grid" title="${gradGridData ? 'Afficher la grille des graduations GPS' : 'Pas de calibration GPS pour cette carte'}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
             <span>${gradGridMode === 'none' ? 'Grille' : gradGridMode === 'major' ? 'Grille 15°' : 'Grille 1°'}</span>
           </button>
@@ -259,6 +384,15 @@ export function initMap(container) {
               </label>`).join('')}
           </div>
         </div>
+        <div class="abar-dropdown" id="dial-dropdown">
+          <button class="abar-btn abar-toggle ${dialSettings.show ? 'active' : ''}" id="btn-dial" title="Cercle divisé autour des points">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></svg>
+            <span>Cercle</span>
+          </button>
+          <div class="abar-dropdown-menu abar-dial-menu" id="dial-menu">
+            ${dialMenuHtml()}
+          </div>
+        </div>
         <div class="abar-dropdown" id="angle-snap-dropdown">
           <button class="abar-btn abar-toggle" id="btn-angle-snap" title="Pas d'angle pour le snap CTRL">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16"/><path d="M4 20L14 4"/><path d="M8 20a8 8 0 0 1 3.5-6.6"/></svg>
@@ -275,6 +409,16 @@ export function initMap(container) {
       </div>
       <div class="abar-sep"></div>
       <div class="abar-group">
+        <label class="abar-select-wrap" for="select-map" title="Choisir le fond de carte">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/></svg>
+          <select class="abar-select" id="select-map" aria-label="Fond de carte">
+            ${Object.entries(MAPS).map(([key, cfg]) =>
+              `<option value="${key}" ${key === mapKey ? 'selected' : ''}>${esc(cfg.label)}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+      <div class="abar-sep"></div>
+      <div class="abar-group">
         <div class="unit-switch ${measurement.calibrated ? '' : 'disabled'}" id="unit-switch" title="Basculer px ↔ cm">
           <span class="unit-switch-label ${measurement.mode === 'px' ? 'active' : ''}">px</span>
           <div class="unit-switch-track ${measurement.mode === 'cm' ? 'on' : ''}">
@@ -283,8 +427,8 @@ export function initMap(container) {
           <span class="unit-switch-label ${measurement.mode === 'cm' ? 'active' : ''}">cm</span>
         </div>
         ${calRatios ? `<div class="abar-ratios">
-          <button class="abar-ratio-btn ${calMode === 'height' ? 'active' : ''}" data-cal="height" title="Ratio hauteur (${WORLDMAP_HEIGHT_CM}cm)">H ${calRatios.height.toFixed(1)}</button>
-          <button class="abar-ratio-btn ${calMode === 'width' ? 'active' : ''}" data-cal="width" title="Ratio largeur (${WORLDMAP_WIDTH_CM}cm)">L ${calRatios.width.toFixed(1)}</button>
+          <button class="abar-ratio-btn ${calMode === 'height' ? 'active' : ''}" data-cal="height" title="Ratio hauteur (${MAPS[mapKey].heightCm}cm)">H ${calRatios.height.toFixed(1)}</button>
+          <button class="abar-ratio-btn ${calMode === 'width' ? 'active' : ''}" data-cal="width" title="Ratio largeur (${MAPS[mapKey].widthCm}cm)">L ${calRatios.width.toFixed(1)}</button>
           <button class="abar-ratio-btn ${calMode === 'avg' ? 'active' : ''}" data-cal="avg" title="Ratio moyen">M ${calRatios.avg.toFixed(1)}</button>
           <span class="abar-label abar-cal-info">${measurement.pixelsPerCm.toFixed(1)} px/cm</span>
         </div>` : ''}
@@ -343,6 +487,11 @@ export function initMap(container) {
         }
       });
     }
+    // Background map selection
+    const mapSelect = bar.querySelector('#select-map');
+    if (mapSelect) {
+      mapSelect.onchange = () => loadMap(mapSelect.value);
+    }
     bar.querySelector('#unit-switch').onclick = () => { measurement.toggleMode(); };
     bar.querySelector('#btn-clear').onclick = () => {
       if (store.getAll().length === 0) return;
@@ -388,6 +537,26 @@ export function initMap(container) {
       });
     }
 
+    // Divided circle dropdown (map-wide settings)
+    const dialBtn = bar.querySelector('#btn-dial');
+    const dialMenu = bar.querySelector('#dial-menu');
+    if (dialBtn && dialMenu) {
+      dialBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (dialMenu.classList.contains('open')) {
+          dialMenu.classList.remove('open');
+        } else {
+          openDropdown(dialMenu, dialBtn);
+        }
+      };
+      bindDialMenu(dialMenu, dialBtn);
+      document.addEventListener('click', (e) => {
+        if (!bar.querySelector('#dial-dropdown')?.contains(e.target)) {
+          dialMenu.classList.remove('open');
+        }
+      });
+    }
+
     // Angle snap step dropdown
     const angBtn = bar.querySelector('#btn-angle-snap');
     const angMenu = bar.querySelector('#angle-snap-menu');
@@ -415,6 +584,10 @@ export function initMap(container) {
   }
 
   // ──── Save / Load Modals ──────────────────────────────
+
+  function persistOptions() {
+    saveOptions({ mode: measurement.mode, calMode, snapEnabled: canvas.snapEnabled, labelVisibility: { ...labelVisibility }, angleSnapStep: toolCtx.angleSnapStep, dial: { ...dialSettings }, view: canvas.getViewState(), mapKey });
+  }
 
   function openSaveModal() {
     const defaultName = 'Sauvegarde ' + new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -456,7 +629,7 @@ export function initMap(container) {
       const name = nameInput.value.trim();
       if (!name) return;
       saveSlot(name, store.getAll());
-      saveOptions({ mode: measurement.mode, calMode, snapEnabled: canvas.snapEnabled, labelVisibility: { ...labelVisibility }, angleSnapStep: toolCtx.angleSnapStep, view: canvas.getViewState() });
+      persistOptions();
       overlay.remove();
     };
 
@@ -504,11 +677,13 @@ export function initMap(container) {
           // Restore saved options
           const opts = loadOptions();
           if (opts) {
+            if (opts.mapKey && MAPS[opts.mapKey] && opts.mapKey !== mapKey) loadMap(opts.mapKey, { view: opts.view ?? null });
             if (opts.calMode && calRatios) { calMode = opts.calMode; applyCalRatio(); }
             if (opts.mode && opts.mode !== measurement.mode) measurement.toggleMode();
             if (opts.snapEnabled !== undefined) canvas.snapEnabled = opts.snapEnabled;
             if (opts.labelVisibility) Object.assign(labelVisibility, opts.labelVisibility);
             if (opts.angleSnapStep) toolCtx.angleSnapStep = opts.angleSnapStep;
+            if (opts.dial) dialSettings = normalizeDial(opts.dial);
             if (opts.view) canvas.setViewState(opts.view);
           }
           overlay.remove();
@@ -557,11 +732,15 @@ export function initMap(container) {
 
     const pointsRows = points.length
       ? points.map(p => {
-          const { lon, lat } = measurement.toGPS(p.x, p.y);
+          let gpsCell = '—'; // carte sans calibration GPS
+          if (measurement.gpsAvailable) {
+            const { lon, lat } = measurement.toGPS(p.x, p.y);
+            gpsCell = `${lon.toFixed(2)}°, ${lat.toFixed(2)}°`;
+          }
           return `<tr>
             <td>${esc(labelOf(p))}</td>
             <td>${esc(measurement.formatCoord(p.x, p.y))}</td>
-            <td>${lon.toFixed(2)}°, ${lat.toFixed(2)}°</td>
+            <td>${gpsCell}</td>
           </tr>`;
         }).join('')
       : `<tr><td colspan="3" class="report-empty">Aucun point.</td></tr>`;
@@ -581,6 +760,41 @@ export function initMap(container) {
         }).join('')
       : `<tr><td colspan="5" class="report-empty">Aucun segment visible.</td></tr>`;
 
+    // Detect connected segments sharing a common endpoint → they form an angle.
+    const same = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) <= 0.5;
+    const angles = [];
+    for (let i = 0; i < segments.length; i++) {
+      for (let j = i + 1; j < segments.length; j++) {
+        const s1 = segments[i], s2 = segments[j];
+        const ends1 = [s1.p1, s1.p2], ends2 = [s2.p1, s2.p2];
+        let vertex = null, arm1 = null, arm2 = null;
+        for (const e1 of ends1) {
+          for (const e2 of ends2) {
+            if (same(e1, e2)) {
+              vertex = e1;
+              arm1 = e1 === s1.p1 ? s1.p2 : s1.p1;
+              arm2 = e2 === s2.p1 ? s2.p2 : s2.p1;
+            }
+          }
+        }
+        if (vertex) angles.push({ s1, s2, vertex, arm1, arm2 });
+      }
+    }
+
+    const angleRows = angles.length
+      ? angles.map(({ s1, s2, vertex, arm1, arm2 }) => {
+          const deg = angleDeg(arm1, vertex, arm2);
+          const code = compassCodeBoussolaire(deg);
+          return `<tr>
+            <td>${esc(labelOf(s1))} ∠ ${esc(labelOf(s2))}</td>
+            <td>${endpointLabel(vertex)}</td>
+            <td>${deg.toFixed(1)}°</td>
+            <td><span class="compass-code">${esc(code)}</span></td>
+          </tr>`;
+        }).join('')
+      : `<tr><td colspan="4" class="report-empty">Aucun angle.</td></tr>`;
+
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
@@ -598,6 +812,13 @@ export function initMap(container) {
           <table class="report-table">
             <thead><tr><th>Label</th><th>Extrémités</th><th>Longueur</th><th>Azimut</th><th>Code</th></tr></thead>
             <tbody>${segRows}</tbody>
+          </table>
+        </div>
+        <h4 class="report-section-title">Angles (segments connectés) (${angles.length})</h4>
+        <div class="report-table-wrap">
+          <table class="report-table">
+            <thead><tr><th>Segments</th><th>Sommet</th><th>Angle</th><th>Code</th></tr></thead>
+            <tbody>${angleRows}</tbody>
           </table>
         </div>
         <div class="modal-actions">
@@ -680,7 +901,7 @@ export function initMap(container) {
   // ──── Detected-tick overlay (debug — red marks) ───────
 
   function renderDetectedTicks(ctx) {
-    if (!detectedGrads) return;
+    if (!detectedGrads || !MAPS[mapKey].gps) return;
     const imgW = canvas.mapImage?.naturalWidth  ?? canvas.mapImage?.width  ?? 0;
     const imgH = canvas.mapImage?.naturalHeight ?? canvas.mapImage?.height ?? 0;
     if (!imgW || !imgH) return;
@@ -761,6 +982,7 @@ export function initMap(container) {
       }
       if (s.type === 'point') {
         html += `<div class="props-row"><label>Lignes guide</label><input type="checkbox" ${s.showGuides ? 'checked' : ''} id="chk-show-guides"></div>`;
+        html += `<div class="props-row"><label>Cercle divisé</label><input type="checkbox" ${s.hideDial ? '' : 'checked'} id="chk-show-dial" title="${dialSettings.show ? 'Afficher le cercle divisé sur ce point' : 'Le cercle divisé est désactivé pour toute la carte (menu Cercle)'}"></div>`;
       }
       html += `<div class="props-actions">
         <button class="btn btn-danger btn-sm" id="btn-delete-shape">Supprimer</button>
@@ -860,6 +1082,16 @@ export function initMap(container) {
         if (!s) return;
         history.save();
         store.update(s.id, { showGuides: showGuidesChk.checked });
+      };
+    }
+
+    const showDialChk = panel.querySelector('#chk-show-dial');
+    if (showDialChk) {
+      showDialChk.onchange = () => {
+        const s = sel[0];
+        if (!s) return;
+        history.save();
+        store.update(s.id, { hideDial: !showDialChk.checked });
       };
     }
 
@@ -991,24 +1223,52 @@ export function initMap(container) {
     updateProps();
   }
 
-  // Auto-load WorldMap MHF and auto-calibrate
-  canvas.loadImage(WORLDMAP_SRC);
+  // Load a background map and re-derive its calibration (px/cm + GPS).
+  // `view` (optional) is applied once the image is in place — loadImage() fits
+  // the image to the viewport, which would otherwise overwrite a restored view.
+  let _pendingView = null;
+  function loadMap(key, { view = null } = {}) {
+    mapKey = MAPS[key] ? key : DEFAULT_MAP_KEY;
+    _pendingView = view;
+    updateActionBar(); // reflect the new selection immediately
+    canvas.loadImage(MAPS[mapKey].src).catch(err => {
+      console.error('[map-section] Échec du chargement de la carte:', err);
+    });
+  }
+
   canvas.on('image-loaded', (img) => {
-    calRatios = {
-      height: img.height / WORLDMAP_HEIGHT_CM,
-      width:  img.width  / WORLDMAP_WIDTH_CM,
-    };
-    calRatios.avg = (calRatios.height + calRatios.width) / 2;
-    applyCalRatio();
+    const cfg = MAPS[mapKey];
+
+    // px ↔ cm calibration — only for maps whose physical size is known
+    if (cfg.widthCm && cfg.heightCm) {
+      calRatios = {
+        height: img.height / cfg.heightCm,
+        width:  img.width  / cfg.widthCm,
+      };
+      calRatios.avg = (calRatios.height + calRatios.width) / 2;
+      applyCalRatio();
+    } else {
+      calRatios = null;
+      measurement.reset(); // back to px-only
+    }
 
     // GPS calibration and graduation ticks are pre-loaded from
-    // data/gps-graduations.json (no runtime detection needed).
-    measurement.setGPSCalibration(detectedGrads);
-    gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads, true);
+    // data/gps-graduations.json (no runtime detection needed) — WorldMap only.
+    if (cfg.gps) {
+      measurement.setGPSCalibration(detectedGrads);
+      gradGridData = buildGradGrid(measurement.gpsCalibration, detectedGrads, true);
+    } else {
+      gradGridData = null;
+      gradGridMode = 'none';
+    }
+    measurement.setGPSAvailable(cfg.gps);
 
-    // Restore saved view state or keep fitToView default
-    const opts = loadOptions();
-    if (opts?.view) canvas.setViewState(opts.view);
+    // Restore a requested view state; otherwise keep the fitToView applied by
+    // loadImage (a plain map switch re-fits, since image sizes differ).
+    if (_pendingView) {
+      canvas.setViewState(_pendingView);
+      _pendingView = null;
+    }
     updateUI();
   });
 
@@ -1017,6 +1277,11 @@ export function initMap(container) {
     measurement.pixelsPerCm = calRatios[calMode];
     measurement.emit('change');
   }
+
+  // Auto-load the last used background map (WorldMap MHF by default)
+  const startupOpts = loadOptions();
+  if (startupOpts?.dial) dialSettings = normalizeDial(startupOpts.dial);
+  loadMap(startupOpts?.mapKey ?? DEFAULT_MAP_KEY, { view: startupOpts?.view ?? null });
 
   updateUI();
 }
