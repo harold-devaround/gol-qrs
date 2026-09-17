@@ -632,6 +632,14 @@ body {
   height: 16px;
 }
 
+.locator-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 /* Toggle px/cm — chip-style */
 .unit-switch {
   display: inline-flex;

@@ -9,6 +9,7 @@ import { listSaves, saveSlot, loadSlot, deleteSlot, saveOptions, loadOptions } f
 import { buildGradGrid, LON_Y0, LON_H, LON_Y0_BOT, LON_H_BOT, LAT_X0, LAT_W, LAT_X0_RIGHT, LAT_W_RIGHT } from './gps-calibration.js';
 import { distance, azimuthDeg, compassCodeBoussolaire, angleDeg } from '../utils/geometry.js';
 import gpsGraduations from '../../data/gps-graduations.json';
+import { makeProjection, buildLocatorGrid, LOCATOR_SYSTEMS } from './locators.js';
 
 /**
  * Fonds de carte disponibles (combobox « Carte » dans la barre d'action).
@@ -89,6 +90,15 @@ export function initMap(container) {
   // Pre-detected graduation tick positions (dumped from detectGraduations,
   // see scripts/dump-graduations.mjs). Includes a +1px shift on lon/lat ticks.
   const detectedGrads = gpsGraduations;
+  // Locator grid overlays (QRA, Maidenhead) on GPS-calibrated maps; detail follows the zoom
+  const locatorsOn = { qra: false, maidenhead: false };
+  const locatorProj = makeProjection(detectedGrads.lonTicks, detectedGrads.latTicks);
+  // Per system: line colour, label colour, legend swatch. Line weight and dash
+  // follow the level depth (0 = coarsest).
+  const LOCATOR_STYLE = {
+    qra:        { rgb: '214, 51, 160', text: 'rgba(150, 20, 110, 0.95)', swatch: 'rgb(214, 51, 160)' },
+    maidenhead: { rgb: '16, 140, 70',  text: 'rgba(8, 100, 45, 0.95)',   swatch: 'rgb(16, 140, 70)' },
+  };
   // Map-wide divided circle around points (points opt out with `hideDial`)
   let dialSettings = { ...DIAL_DEFAULTS };
   const labelVisibility = {
@@ -171,6 +181,7 @@ export function initMap(container) {
     if (gradGridMode !== 'none' && gradGridData) {
       renderGradGrid(ctx, gradGridData, gradGridMode);
     }
+    if (MAPS[mapKey].gps) renderLocatorGrids(ctx);
     // Always show raw detected tick positions in red (debugging aid)
     renderDetectedTicks(ctx);
     for (const s of store.getVisible()) {
@@ -371,6 +382,20 @@ export function initMap(container) {
             </label>
           </div>
         </div>
+        <div class="abar-dropdown" id="locator-dropdown">
+          <button class="abar-btn abar-toggle ${MAPS[mapKey].gps && Object.values(locatorsOn).some(Boolean) ? 'active' : ''} ${MAPS[mapKey].gps ? '' : 'disabled'}" id="btn-locator" title="${MAPS[mapKey].gps ? 'Grilles de locator (QRA, Maidenhead) — le détail suit le zoom' : 'Pas de calibration GPS pour cette carte'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="7.5" y1="12" x2="7.5" y2="21" stroke-width="1"/><line x1="3" y1="16.5" x2="12" y2="16.5" stroke-width="1"/></svg>
+            <span>Locator</span>
+          </button>
+          <div class="abar-dropdown-menu" id="locator-menu">
+            ${LOCATOR_SYSTEMS.map(sys =>
+              `<label class="abar-dropdown-item">
+                <input type="checkbox" data-locator="${sys.id}" ${locatorsOn[sys.id] ? 'checked' : ''}>
+                <span class="locator-swatch" style="background:${LOCATOR_STYLE[sys.id].swatch}"></span>
+                <span>${sys.name}</span>
+              </label>`).join('')}
+          </div>
+        </div>
         <div class="abar-dropdown" id="label-vis-dropdown">
           <button class="abar-btn abar-toggle" id="btn-label-vis" title="Visibilité des labels par type">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
@@ -487,6 +512,33 @@ export function initMap(container) {
         }
       });
     }
+    // Locator grids dropdown — stays open while toggling systems
+    const locBtn = bar.querySelector('#btn-locator');
+    const locMenu = bar.querySelector('#locator-menu');
+    if (locBtn && locMenu) {
+      locBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (!MAPS[mapKey].gps) return;
+        if (locMenu.classList.contains('open')) {
+          locMenu.classList.remove('open');
+        } else {
+          openDropdown(locMenu, locBtn);
+        }
+      };
+      locMenu.querySelectorAll('[data-locator]').forEach(chk => {
+        chk.onchange = () => {
+          locatorsOn[chk.dataset.locator] = chk.checked;
+          locBtn.classList.toggle('active', Object.values(locatorsOn).some(Boolean));
+          persistOptions();
+          canvas.requestRender();
+        };
+      });
+      document.addEventListener('click', (e) => {
+        if (!bar.querySelector('#locator-dropdown')?.contains(e.target)) {
+          locMenu.classList.remove('open');
+        }
+      });
+    }
     // Background map selection
     const mapSelect = bar.querySelector('#select-map');
     if (mapSelect) {
@@ -586,7 +638,7 @@ export function initMap(container) {
   // ──── Save / Load Modals ──────────────────────────────
 
   function persistOptions() {
-    saveOptions({ mode: measurement.mode, calMode, snapEnabled: canvas.snapEnabled, labelVisibility: { ...labelVisibility }, angleSnapStep: toolCtx.angleSnapStep, dial: { ...dialSettings }, view: canvas.getViewState(), mapKey });
+    saveOptions({ mode: measurement.mode, calMode, snapEnabled: canvas.snapEnabled, labelVisibility: { ...labelVisibility }, angleSnapStep: toolCtx.angleSnapStep, dial: { ...dialSettings }, locators: { ...locatorsOn }, view: canvas.getViewState(), mapKey });
   }
 
   function openSaveModal() {
@@ -684,6 +736,7 @@ export function initMap(container) {
             if (opts.labelVisibility) Object.assign(labelVisibility, opts.labelVisibility);
             if (opts.angleSnapStep) toolCtx.angleSnapStep = opts.angleSnapStep;
             if (opts.dial) dialSettings = normalizeDial(opts.dial);
+            if (opts.locators) for (const id of Object.keys(locatorsOn)) locatorsOn[id] = !!opts.locators[id];
             if (opts.view) canvas.setViewState(opts.view);
           }
           overlay.remove();
@@ -895,6 +948,94 @@ export function initMap(container) {
       }
     }
 
+    ctx.restore();
+  }
+
+  // ──── Locator grids (QRA, Maidenhead) ────────────────
+
+  const LOCATOR_DEPTH = [
+    { width: 2.2, alpha: 0.85, dash: [],     font: 'bold 12px' },
+    { width: 1.3, alpha: 0.65, dash: [],     font: 'bold 12px' },
+    { width: 0.8, alpha: 0.45, dash: [],     font: 'bold 11px' },
+    { width: 0.6, alpha: 0.40, dash: [3, 3], font: 'bold 10px' },
+  ];
+
+  function renderLocatorGrids(ctx) {
+    const active = LOCATOR_SYSTEMS.filter(sys => locatorsOn[sys.id]);
+    if (active.length === 0) return;
+    const P = locatorProj;
+    // Visible window in degrees, clamped to the graduated map area
+    const rect = canvas.worldRect();
+    const xMin = P.lonToX(P.lonRange[0]), xMax = P.lonToX(P.lonRange[1]);
+    const yTop = P.latToY(P.latRange[1]), yBot = P.latToY(P.latRange[0]);
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const view = {
+      lonMin: P.xToLon(clamp(rect.x, xMin, xMax)),
+      lonMax: P.xToLon(clamp(rect.x + rect.w, xMin, xMax)),
+      latMax: P.yToLat(clamp(rect.y, yTop, yBot)),
+      latMin: P.yToLat(clamp(rect.y + rect.h, yTop, yBot)),
+    };
+    if (view.lonMax <= view.lonMin || view.latMax <= view.latMin) return;
+
+    // On-screen scale (px per degree) at the centre of the view
+    const z = canvas.zoom;
+    const cLat = clamp((view.latMin + view.latMax) / 2, P.latRange[0] + 0.5, P.latRange[1] - 0.5);
+    const pxPerLon = (P.lonToX(1) - P.lonToX(0)) * z;
+    const pxPerLat = (P.latToY(cLat - 0.5) - P.latToY(cLat + 0.5)) * z;
+
+    // With both grids on, their 2° × 1° squares coincide: shift labels apart
+    active.forEach((sys, n) => {
+      const labelDy = active.length > 1 ? (n === 0 ? -8 : 8) : 0;
+      renderLocatorGrid(ctx, sys, buildLocatorGrid(sys, view, pxPerLon, pxPerLat), LOCATOR_STYLE[sys.id], labelDy);
+    });
+  }
+
+  function renderLocatorGrid(ctx, sys, grid, style, labelDy) {
+    if (!grid.bounds) return; // system extent out of view
+    const P = locatorProj;
+    ctx.save();
+    // Lines only span the visible part of the system's extent
+    const top = canvas.toScreen(0, P.latToY(grid.bounds.latMax)).y;
+    const bottom = canvas.toScreen(0, P.latToY(grid.bounds.latMin)).y;
+    const left = canvas.toScreen(P.lonToX(grid.bounds.lonMin), 0).x;
+    const right = canvas.toScreen(P.lonToX(grid.bounds.lonMax), 0).x;
+    const depthOf = key => sys.levels.findIndex(l => l.key === key);
+    // One path per level, finest first so coarser lines stay on top
+    for (let d = grid.layout.linesIndex; d >= 0; d--) {
+      const key = sys.levels[d].key, st = LOCATOR_DEPTH[Math.min(d, LOCATOR_DEPTH.length - 1)];
+      ctx.lineWidth = st.width;
+      ctx.strokeStyle = `rgba(${style.rgb}, ${st.alpha})`;
+      ctx.setLineDash(st.dash);
+      ctx.beginPath();
+      for (const l of grid.lonLines) {
+        if (l.level !== key) continue;
+        const x = canvas.toScreen(P.lonToX(l.deg), 0).x;
+        ctx.moveTo(x, top); ctx.lineTo(x, bottom);
+      }
+      for (const l of grid.latLines) {
+        if (l.level !== key) continue;
+        const y = canvas.toScreen(0, P.latToY(l.deg)).y;
+        ctx.moveTo(left, y); ctx.lineTo(right, y);
+      }
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if (grid.layout.labels) {
+      const st = LOCATOR_DEPTH[Math.min(depthOf(grid.layout.labels), LOCATOR_DEPTH.length - 1)];
+      ctx.font = `${st.font} "Segoe UI", system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.fillStyle = style.text;
+      for (const lbl of grid.labels) {
+        const p = canvas.toScreen(P.lonToX(lbl.lon), P.latToY(lbl.lat));
+        ctx.strokeText(lbl.text, p.x, p.y + labelDy);
+        ctx.fillText(lbl.text, p.x, p.y + labelDy);
+      }
+    }
     ctx.restore();
   }
 
@@ -1281,6 +1422,7 @@ export function initMap(container) {
   // Auto-load the last used background map (WorldMap MHF by default)
   const startupOpts = loadOptions();
   if (startupOpts?.dial) dialSettings = normalizeDial(startupOpts.dial);
+  if (startupOpts?.locators) for (const id of Object.keys(locatorsOn)) locatorsOn[id] = !!startupOpts.locators[id];
   loadMap(startupOpts?.mapKey ?? DEFAULT_MAP_KEY, { view: startupOpts?.view ?? null });
 
   updateUI();
